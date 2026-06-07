@@ -59,6 +59,7 @@ flamegraph.svg
 tarpaulin-report.html
 cobertura.xml
 coverage/
+symbols/
 lcov.info
 
 # Backup files

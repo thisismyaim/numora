@@ -1,0 +1,37 @@
+# circle_math.mth
+
+@function calculator circle_area(radius)
+
+formula:
+    area = PI * radius^2
+
+return:
+    area
+
+
+@function calculator circle_circumference(radius)
+
+formula:
+    circumference = 2 * PI * radius
+
+return:
+    circumference
+
+
+@run calculator _start
+
+given:
+    radius = 5
+
+formula:
+    area = circle_area(radius)
+    circumference = circle_circumference(radius)
+    ratio = area / circumference
+
+find:
+    area
+    circumference
+    ratio
+
+return:
+    area

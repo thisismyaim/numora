@@ -1,0 +1,23 @@
+@function calculator circle_area(radius)
+
+formula:
+    area = PI * radius^2
+
+return:
+    area
+
+@run calculator _start
+
+given:
+    radius = 5
+formula:
+    area = circle_area(radius)
+    circumference = 2 * PI * radius #without function it can run, or we can update circle_area function.
+find:
+    area
+    circumference
+
+@return area #find area not meant to be returned here as find already returns area and circumference or if we combining two or more
+# functions together, values together than return make sense ex. return area and circumference
+
+or # return area - circumference or area / circumference or anything else.
