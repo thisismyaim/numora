@@ -1,0 +1,11 @@
+@run calculator
+
+given:
+    length = 5 m
+    width = 4 m
+
+formula:
+    area = length * width
+
+find:
+    area

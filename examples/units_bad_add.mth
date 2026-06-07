@@ -1,0 +1,11 @@
+@run calculator
+
+given:
+    length = 5 m
+    time = 2 s
+
+formula:
+    bad = length + time
+
+find:
+    bad

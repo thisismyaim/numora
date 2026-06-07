@@ -1,0 +1,7 @@
+@run solve
+
+equation:
+    x + 3 = 10
+
+solve:
+    x

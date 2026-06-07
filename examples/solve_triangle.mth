@@ -1,0 +1,11 @@
+@run solve
+
+given:
+    a = 3
+    b = 4
+
+equation:
+    a^2 + b^2 = c^2
+
+solve:
+    c

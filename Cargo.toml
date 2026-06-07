@@ -1,0 +1,20 @@
+[package]
+name = "numora"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "numora"
+path = "src/main.rs"
+
+[features]
+default = ["calculator"]
+
+calculator = []
+variables = []
+steps = []
+equations = []
+units = []
+ide_api = []
+
+[dependencies]

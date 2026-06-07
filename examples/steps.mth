@@ -1,0 +1,10 @@
+@run steps
+
+given:
+    n = 7
+
+formula:
+    f = (n + 1) / 4
+
+find:
+    f

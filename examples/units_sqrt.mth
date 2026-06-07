@@ -1,0 +1,10 @@
+@run calculator
+
+given:
+    area = 25 m * 1 m
+
+formula:
+    side = sqrt(area)
+
+find:
+    side

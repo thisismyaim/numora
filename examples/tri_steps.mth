@@ -1,0 +1,11 @@
+@run steps
+
+given:
+    a = 3
+    b = 4
+
+formula:
+    c = sqrt(a^2 + b^2)
+
+find:
+    c

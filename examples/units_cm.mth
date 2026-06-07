@@ -1,0 +1,11 @@
+@run calculator
+
+given:
+    a = 100 cm
+    b = 2 m
+
+formula:
+    total = a + b
+
+find:
+    total

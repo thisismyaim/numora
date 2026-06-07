@@ -1,0 +1,10 @@
+@run solve
+
+given:
+    area = 78.53981633974483
+
+equation:
+    area = PI * radius^2
+
+solve:
+    radius

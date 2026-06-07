@@ -1,0 +1,11 @@
+@run calculator
+
+given:
+    distance = 100 m
+    time = 20 s
+
+formula:
+    speed = distance / time
+
+find:
+    speed

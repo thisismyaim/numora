@@ -1,0 +1,12 @@
+@run steps
+
+given:
+    math = 90
+    physics = 80
+    programming = 100
+
+formula:
+    average = avgof(math, physics, programming)
+
+find:
+    average

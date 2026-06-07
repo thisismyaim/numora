@@ -1,0 +1,10 @@
+@run steps
+
+given:
+    radius = 5
+
+formula:
+    area = PI * radius^2
+
+find:
+    area
