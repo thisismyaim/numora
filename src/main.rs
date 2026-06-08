@@ -44,6 +44,10 @@ fn run_from_args(runtime: &Runtime, args: &[String]) -> Result<(), String> {
         return Ok(());
     }
 
+    if args.len() == 2 && args[1].ends_with(".mth") {
+        return run_file(runtime, &args[1]);
+    }
+
     let expression = args[1..].join(" ");
 
     match runtime.run(&expression) {
@@ -104,16 +108,17 @@ fn run_repl(runtime: &Runtime) -> Result<(), String> {
     println!("  PI * 2");
     println!();
     println!("File:");
-    println!("  kara_math --file example.mth");
+    println!("  numora example.mth");
+    println!("  numora --file example.mth");
     println!();
     println!("Pipe:");
-    println!("  echo \"sqrt(25)\" | NumoraMath");
+    println!("  echo \"sqrt(25)\" | numora");
     println!();
     println!("Type 'exit' to quit.");
     println!();
 
     loop {
-        print!("kara> ");
+        print!("numera -> ");
         io::stdout()
             .flush()
             .map_err(|err| format!("Could not flush stdout: {}", err))?;

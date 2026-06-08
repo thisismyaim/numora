@@ -19,9 +19,18 @@ impl Lexer {
 
         while let Some(ch) = self.current_char() {
             match ch {
-                '0'..='9' | '.' => {
+                '0'..='9' => {
                     let number = self.read_number()?;
                     tokens.push(Token::Number(number));
+                }
+
+                '.' => {
+                    if self.next_char().map_or(false, |next| next.is_ascii_digit()) {
+                        let number = self.read_number()?;
+                        tokens.push(Token::Number(number));
+                    } else {
+                        return Err(Numora::LexerError("Unexpected '.'".to_string()));
+                    }
                 }
 
                 'a'..='z' | 'A'..='Z' => {
@@ -92,6 +101,10 @@ impl Lexer {
         self.input.get(self.position).copied()
     }
 
+    fn next_char(&self) -> Option<char> {
+        self.input.get(self.position + 1).copied()
+    }
+
     fn advance(&mut self) {
         self.position += 1;
     }
@@ -99,9 +112,11 @@ impl Lexer {
     fn read_number(&mut self) -> Result<f64, Numora> {
         let mut number_text = String::new();
         let mut dot_count = 0;
+        let mut digit_count = 0;
 
         while let Some(ch) = self.current_char() {
             if ch.is_ascii_digit() {
+                digit_count += 1;
                 number_text.push(ch);
                 self.advance();
             } else if ch == '.' {
@@ -118,6 +133,20 @@ impl Lexer {
             } else {
                 break;
             }
+        }
+
+        if digit_count == 0 {
+            return Err(Numora::LexerError(format!(
+                "Invalid number '{}'",
+                number_text
+            )));
+        }
+
+        if number_text.ends_with('.') {
+            return Err(Numora::LexerError(format!(
+                "Invalid number '{}'",
+                number_text
+            )));
         }
 
         number_text

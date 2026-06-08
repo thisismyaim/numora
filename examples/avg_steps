@@ -1,9 +1,9 @@
 @run steps
 
 given:
-    math = 90
-    physics = 80
-    programming = 100
+    math = 90.0
+    physics = 80.0
+    programming = 100.0
 
 formula:
     average = avgof(math, physics, programming)
