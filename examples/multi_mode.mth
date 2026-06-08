@@ -1,0 +1,12 @@
+@run calculator steps
+
+given:
+    math = 90.0
+    physics = 80.0
+    programming = 100.0
+
+formula:
+    average = avgof(math, physics, programming)
+
+find:
+    average

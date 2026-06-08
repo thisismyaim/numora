@@ -1,0 +1,11 @@
+@run steps calculator
+
+given:
+    x = 10
+    y = 20
+
+formula:
+    z = x + y
+
+find:
+    z
