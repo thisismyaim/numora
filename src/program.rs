@@ -10,7 +10,7 @@ use crate::value::Value;
 
 #[derive(Debug, Clone)]
 pub struct MathProgram {
-    pub run_mode: RunMode,
+    pub run_modes: Vec<String>,
     pub assignments: Vec<Assignment>,
     pub formula: Option<Assignment>,
     pub equation: Option<Equation>,
@@ -18,21 +18,22 @@ pub struct MathProgram {
     pub solve: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RunMode {
-    Calculator,
-    Steps,
-    Solve,
-}
+pub fn detect_run_modes(source: &str) -> Vec<String> {
+    for line in source.lines() {
+        let trimmed = line.trim();
 
-pub fn detect_run_mode(source: &str) -> RunMode {
-    if source.contains("@run steps") {
-        RunMode::Steps
-    } else if source.contains("@run solve") {
-        RunMode::Solve
-    } else {
-        RunMode::Calculator
+        if trimmed.starts_with("@run") {
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+
+            if parts.len() <= 1 {
+                return vec!["calculator".to_string()];
+            }
+
+            return parts[1..].iter().map(|mode| mode.to_string()).collect();
+        }
     }
+
+    vec!["calculator".to_string()]
 }
 
 #[derive(Debug, Clone)]
@@ -44,11 +45,15 @@ pub struct Assignment {
 pub fn run_math_program(source: &str) -> Result<String, Numora> {
     let program = parse_math_program(source)?;
 
-    match program.run_mode {
-        RunMode::Calculator => run_calculator_program(&program),
-        RunMode::Steps => run_steps_program(&program),
-        RunMode::Solve => run_solve_program(&program),
+    if program.run_modes.iter().any(|mode| mode == "solve") {
+        return run_solve_program(&program);
     }
+
+    if program.run_modes.iter().any(|mode| mode == "steps") {
+        return run_steps_program(&program);
+    }
+
+    run_calculator_program(&program)
 }
 
 fn run_calculator_program(program: &MathProgram) -> Result<String, Numora> {
@@ -165,7 +170,7 @@ fn parse_expression_to_ast(source: &str) -> Result<crate::ast::Expr, Numora> {
 
 fn parse_math_program(source: &str) -> Result<MathProgram, Numora> {
     let mut program = MathProgram {
-        run_mode: RunMode::Calculator,
+        run_modes: detect_run_modes(source),
         assignments: Vec::new(),
         formula: None,
         equation: None,
@@ -186,22 +191,19 @@ fn parse_math_program(source: &str) -> Result<MathProgram, Numora> {
             continue;
         }
 
+        if line.starts_with("@run") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+
+            if parts.len() <= 1 {
+                program.run_modes = vec!["calculator".to_string()];
+            } else {
+                program.run_modes = parts[1..].iter().map(|mode| mode.to_string()).collect();
+            }
+
+            continue;
+        }
+
         match line {
-            "@run calculator" => {
-                program.run_mode = RunMode::Calculator;
-                continue;
-            }
-
-            "@run steps" => {
-                program.run_mode = RunMode::Steps;
-                continue;
-            }
-
-            "@run solve" => {
-                program.run_mode = RunMode::Solve;
-                continue;
-            }
-
             "given:" => {
                 current_section = Section::Given;
                 continue;
