@@ -1,23 +1,35 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModeKind {
-    Executor,
-    Explainer,
-    Reporter,
+    Execution,
+    Output,
 }
 
 #[derive(Debug, Clone)]
-pub struct ModeSpec {
-    pub name: &'static str,
+pub struct ModeInfo {
+    pub name: String,
     pub kind: ModeKind,
-    pub description: &'static str,
 }
 
-impl ModeSpec {
-    pub fn is_executor(&self) -> bool {
-        self.kind == ModeKind::Executor
+impl ModeInfo {
+    pub fn execution(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            kind: ModeKind::Execution,
+        }
     }
 
-    pub fn is_output_mode(&self) -> bool {
-        matches!(self.kind, ModeKind::Explainer | ModeKind::Reporter)
+    pub fn output(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            kind: ModeKind::Output,
+        }
+    }
+
+    pub fn is_execution(&self) -> bool {
+        self.kind == ModeKind::Execution
+    }
+
+    pub fn is_output(&self) -> bool {
+        self.kind == ModeKind::Output
     }
 }

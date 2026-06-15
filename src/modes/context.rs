@@ -1,22 +1,30 @@
 #[derive(Debug, Clone)]
-pub struct RunContext {
-    pub result_name: Option<String>,
-    pub result_display: Option<String>,
-    pub trace: Vec<String>,
-    pub warnings: Vec<String>,
+pub struct ModeContext {
+    pub modes: Vec<String>,
 }
 
-impl RunContext {
-    pub fn new() -> Self {
-        Self {
-            result_name: None,
-            result_display: None,
-            trace: Vec::new(),
-            warnings: Vec::new(),
-        }
+impl ModeContext {
+    pub fn new(modes: Vec<String>) -> Self {
+        Self { modes }
     }
 
-    pub fn has_result(&self) -> bool {
-        self.result_display.is_some()
+    pub fn has_mode(&self, mode: &str) -> bool {
+        self.modes.iter().any(|m| m == mode)
+    }
+
+    pub fn is_steps_enabled(&self) -> bool {
+        self.has_mode("steps")
+    }
+
+    pub fn is_summary_enabled(&self) -> bool {
+        self.has_mode("summary")
+    }
+
+    pub fn primary_execution_mode(&self) -> &str {
+        self.modes
+            .iter()
+            .find(|mode| mode.as_str() == "calculator" || mode.as_str() == "physics")
+            .map(|mode| mode.as_str())
+            .unwrap_or("calculator")
     }
 }

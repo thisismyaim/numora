@@ -3,6 +3,7 @@ use crate::error::Numora;
 use crate::evaluator::evaluate;
 use crate::format::format_number;
 use crate::lexer::Lexer;
+use crate::modes::pipeline::ModePipeline;
 use crate::parser::Parser;
 use crate::solver::{parse_equation, solve_equation, Equation};
 use crate::tracer::trace_assignment;
@@ -44,6 +45,7 @@ pub struct Assignment {
 
 pub fn run_math_program(source: &str) -> Result<String, Numora> {
     let program = parse_math_program(source)?;
+    let _pipeline = ModePipeline::new(program.run_modes.clone())?;
 
     if program.run_modes.iter().any(|mode| mode == "solve") {
         return run_solve_program(&program);
