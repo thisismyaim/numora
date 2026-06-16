@@ -20,7 +20,6 @@ enum Section {
     Equation,
     Find,
     Solve,
-    Trailing,
 }
 
 impl MathSections {
@@ -69,7 +68,6 @@ impl MathSections {
                 Section::Equation => sections.equation_lines.push(line.to_string()),
                 Section::Find => sections.find_lines.push(line.to_string()),
                 Section::Solve => sections.solve_lines.push(line.to_string()),
-                Section::Trailing => sections.trailing_lines.push(line.to_string()),
             }
         }
 

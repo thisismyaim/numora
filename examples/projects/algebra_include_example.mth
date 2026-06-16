@@ -1,0 +1,9 @@
+@run algebra steps
+
+@include "../libraries/algebra/basic_values.mth"
+
+formula:
+    result = x + y
+
+find:
+    result

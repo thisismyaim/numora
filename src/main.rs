@@ -1,167 +1,150 @@
-use std::env;
-use std::fs;
-use std::io::{self, IsTerminal, Read, Write};
-use std::path::Path;
-
 use numora::config::LanguageConfig;
 use numora::runtime::Runtime;
+use std::env;
+use std::io::{self, IsTerminal, Write};
+use std::path::Path;
 
 fn main() {
-    let config = LanguageConfig::default();
-    let runtime = Runtime::new(config);
+    let runtime = Runtime::new(LanguageConfig::default());
 
-    let args: Vec<String> = env::args().collect();
-
-    match run_app(&runtime, &args) {
-        Ok(()) => {}
-        Err(error) => {
-            eprintln!("{}", error);
-            std::process::exit(1);
-        }
-    }
-}
-
-fn run_app(runtime: &Runtime, args: &[String]) -> Result<(), String> {
-    if args.len() > 1 {
-        return run_from_args(runtime, args);
-    }
+    let args: Vec<String> = env::args().skip(1).collect();
 
     if !io::stdin().is_terminal() {
-        return run_from_stdin(runtime);
+        run_from_stdin(&runtime);
+        return;
     }
 
-    run_repl(runtime)
-}
-
-fn run_from_args(runtime: &Runtime, args: &[String]) -> Result<(), String> {
-    if args.len() >= 3 && args[1] == "--file" {
-        let path = &args[2];
-        return run_file(runtime, path);
+    if args.is_empty() {
+        run_repl(&runtime);
+        return;
     }
 
-    if args.len() >= 2 && args[1] == "--help" {
-        print_help();
-        return Ok(());
-    }
+    if args.len() == 1 {
+        let input = &args[0];
 
-    if args.len() == 2 && args[1].ends_with(".mth") {
-        return run_file(runtime, &args[1]);
-    }
-
-    let expression = args[1..].join(" ");
-
-    match runtime.run(&expression) {
-        Ok(output) => {
-            println!("{}", output);
-            Ok(())
+        if looks_like_file_path(input) {
+            run_file(&runtime, input);
+        } else {
+            run_expression(&runtime, input);
         }
-        Err(error) => Err(error.to_string()),
+
+        return;
+    }
+
+    let expression = args.join(" ");
+    run_expression(&runtime, &expression);
+}
+
+fn run_file(runtime: &Runtime, file_path: &str) {
+    match runtime.run_file(file_path) {
+        Ok(output) => println!("{}", output),
+        Err(error) => eprintln!("Evaluation Error: {}", error),
     }
 }
 
-fn run_file(runtime: &Runtime, path: &str) -> Result<(), String> {
-    let path_obj = Path::new(path);
-
-    if path_obj.extension().and_then(|ext| ext.to_str()) != Some("mth") {
-        return Err(format!(
-            "Invalid file type '{}'. Kara Math files must use .mth extension",
-            path
-        ));
+fn run_expression(runtime: &Runtime, expression: &str) {
+    match runtime.run(expression) {
+        Ok(output) => println!("{}", output),
+        Err(error) => eprintln!("Evaluation Error: {}", error),
     }
+}
 
-    let source = fs::read_to_string(path)
-        .map_err(|err| format!("Could not read file '{}': {}", path, err))?;
+fn run_from_stdin(runtime: &Runtime) {
+    let source = match io::read_to_string(io::stdin()) {
+        Ok(input) => input,
+        Err(error) => {
+            eprintln!("Input Error: failed to read from stdin: {}", error);
+            return;
+        }
+    };
+
+    if source.trim().is_empty() {
+        return;
+    }
 
     match runtime.run(&source) {
-        Ok(output) => {
-            println!("{}", output);
-            Ok(())
-        }
-        Err(error) => Err(error.to_string()),
+        Ok(output) => println!("{}", output),
+        Err(error) => eprintln!("Evaluation Error: {}", error),
     }
 }
 
-fn run_from_stdin(runtime: &Runtime) -> Result<(), String> {
-    let mut source = String::new();
-
-    io::stdin()
-        .read_to_string(&mut source)
-        .map_err(|err| format!("Could not read stdin: {}", err))?;
-
-    match runtime.run(&source) {
-        Ok(output) => {
-            println!("{}", output);
-            Ok(())
-        }
-        Err(error) => Err(error.to_string()),
-    }
-}
-
-fn run_repl(runtime: &Runtime) -> Result<(), String> {
-    println!("Numora Math v0.1");
-    println!("Roadmap: Calculator -> Variables -> Steps -> Equations -> Units -> IDE");
-    println!();
-    println!("Examples:");
-    println!("  1 + 2 * 3");
-    println!("  sqrt(25)");
-    println!("  sumof(1, 2, 3)");
-    println!("  PI * 2");
-    println!();
-    println!("File:");
-    println!("  numora example.mth");
-    println!("  numora --file example.mth");
-    println!();
-    println!("Pipe:");
-    println!("  echo \"sqrt(25)\" | numora");
-    println!();
-    println!("Type 'exit' to quit.");
+fn run_repl(runtime: &Runtime) {
+    println!("Numora REPL");
+    println!("Type an expression or .mth program.");
+    println!("Commands: :exit, :quit, :help");
     println!();
 
     loop {
-        print!("numera -> ");
-        io::stdout()
-            .flush()
-            .map_err(|err| format!("Could not flush stdout: {}", err))?;
+        print!("numora> ");
+
+        if let Err(error) = io::stdout().flush() {
+            eprintln!("Output Error: failed to flush stdout: {}", error);
+            return;
+        }
 
         let mut input = String::new();
 
-        io::stdin()
-            .read_line(&mut input)
-            .map_err(|err| format!("Could not read input: {}", err))?;
-
-        let input = input.trim();
-
-        if input == "exit" {
-            break;
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => {
+                println!();
+                return;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                eprintln!("Input Error: failed to read line: {}", error);
+                return;
+            }
         }
 
-        if input.is_empty() {
+        let trimmed = input.trim();
+
+        if trimmed.is_empty() {
             continue;
         }
 
-        match runtime.run(input) {
-            Ok(output) => println!("{}", output),
-            Err(error) => println!("{}", error),
+        match trimmed {
+            ":exit" | ":quit" => return,
+            ":help" => {
+                print_help();
+                continue;
+            }
+            _ => {}
+        }
+
+        if looks_like_file_path(trimmed) {
+            run_file(runtime, trimmed);
+        } else {
+            run_expression(runtime, trimmed);
         }
     }
-
-    Ok(())
 }
 
 fn print_help() {
-    println!("Numora Math");
     println!();
-    println!("Usage:");
-    println!("  numora");
-    println!("  numora \"1 + 2 * 3\"");
-    println!("  numora --file example.mth");
-    println!("  echo \"sqrt(25)\" | numora");
+    println!("Numora usage:");
     println!();
-    println!("Supported now:");
-    println!("  + - _ * / ^");
-    println!("  parentheses");
-    println!("  constants: PI, E, e, TAU, PHI");
-    println!("  functions: sumof, avgof, minof, maxof");
-    println!("  functions: sqrt, abs, round, floor, ceil");
-    println!("  functions: sin, cos, tan, ln, log");
+    println!("  Run direct expression:");
+    println!("    numora \"1 + 2 * 3\"");
+    println!();
+    println!("  Run .mth file:");
+    println!("    numora examples/projects/algebra_include_example.mth");
+    println!();
+    println!("  Pipe source:");
+    println!("    cat examples/basic.mth | numora");
+    println!();
+    println!("REPL commands:");
+    println!("  :help   Show help");
+    println!("  :exit   Exit REPL");
+    println!("  :quit   Exit REPL");
+    println!();
+}
+
+fn looks_like_file_path(input: &str) -> bool {
+    let path = Path::new(input);
+
+    if path.extension().is_some_and(|extension| extension == "mth") {
+        return true;
+    }
+
+    path.exists() && path.is_file()
 }

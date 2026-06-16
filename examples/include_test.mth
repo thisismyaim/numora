@@ -1,0 +1,8 @@
+@run calculator
+@include "./common.mth"
+
+formula:
+    result = x + y
+
+find:
+    result

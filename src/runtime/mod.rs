@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::Path;
+
 use crate::config::LanguageConfig;
 use crate::environment::Environment;
 use crate::error::Numora;
@@ -36,6 +39,38 @@ impl Runtime {
         }
 
         let expanded_source = IncludeResolver::expand_source(source)?;
+
+        let requested_modes = detect_run_modes(&expanded_source);
+        let pipeline = ModePipeline::new(requested_modes);
+        let context = pipeline.build_context()?;
+
+        ModeExecutor::execute(&expanded_source, &context)
+    }
+
+    pub fn run_file<P: AsRef<Path>>(&self, path: P) -> Result<String, Numora> {
+        let path = path.as_ref();
+
+        let source = fs::read_to_string(path).map_err(|error| {
+            Numora::EvaluationError(format!(
+                "Failed to read file '{}': {}",
+                path.display(),
+                error
+            ))
+        })?;
+
+        let base_dir = path.parent().unwrap_or_else(|| Path::new("."));
+
+        self.run_with_base_dir(&source, base_dir)
+    }
+
+    pub fn run_with_base_dir(&self, source: &str, base_dir: &Path) -> Result<String, Numora> {
+        self.validate_feature_access(source)?;
+
+        if self.looks_like_direct_expression(source) {
+            return self.run_direct_expression(source);
+        }
+
+        let expanded_source = IncludeResolver::expand_source_with_base(source, base_dir)?;
 
         let requested_modes = detect_run_modes(&expanded_source);
         let pipeline = ModePipeline::new(requested_modes);

@@ -1,0 +1,6 @@
+given:
+    a = 2
+    b = 3
+
+formula:
+    linear_result = a + b
