@@ -1,3 +1,4 @@
+pub mod algebra;
 pub mod ast;
 pub mod builtins;
 pub mod config;
