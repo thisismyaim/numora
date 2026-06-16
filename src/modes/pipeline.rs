@@ -1,81 +1,107 @@
 use crate::error::Numora;
-use crate::modes::context::ModeContext;
-use crate::modes::registry::ModeRegistry;
+use crate::modes::{ModeContext, ModeRegistry};
 
-#[derive(Debug, Clone)]
 pub struct ModePipeline {
-    modes: Vec<String>,
+    requested_modes: Vec<String>,
 }
 
 impl ModePipeline {
-    pub fn new(run_modes: Vec<String>) -> Result<Self, Numora> {
-        let registry = ModeRegistry::new();
-
-        let modes = Self::normalize(run_modes);
-
-        Self::validate_known_modes(&modes, &registry)?;
-        Self::validate_order(&modes, &registry)?;
-
-        Ok(Self { modes })
+    pub fn new(requested_modes: Vec<String>) -> Self {
+        Self { requested_modes }
     }
 
-    pub fn modes(&self) -> &[String] {
-        &self.modes
+    pub fn build_context(&self) -> Result<ModeContext, Numora> {
+        let normalized_modes = self.normalize_modes()?;
+        self.validate_modes(&normalized_modes)?;
+
+        Ok(ModeContext::new(normalized_modes))
     }
 
-    pub fn into_context(self) -> ModeContext {
-        ModeContext::new(self.modes)
-    }
+    fn normalize_modes(&self) -> Result<Vec<String>, Numora> {
+        let modes: Vec<String> = self
+            .requested_modes
+            .iter()
+            .map(|mode| mode.trim().to_lowercase())
+            .filter(|mode| !mode.is_empty())
+            .collect();
 
-    fn normalize(run_modes: Vec<String>) -> Vec<String> {
-        if run_modes.is_empty() {
-            return vec!["calculator".to_string()];
+        if modes.is_empty() {
+            return Ok(vec!["calculator".to_string()]);
         }
 
         // V1 compatibility:
-        //
-        // @run steps
-        //
-        // means:
-        //
-        // @run calculator steps
-        if run_modes.len() == 1 && run_modes[0] == "steps" {
-            return vec!["calculator".to_string(), "steps".to_string()];
+        // @run steps behaves like @run calculator steps
+        if modes == ["steps"] {
+            return Ok(vec!["calculator".to_string(), "steps".to_string()]);
         }
 
-        run_modes
+        Ok(modes)
     }
 
-    fn validate_known_modes(modes: &[String], registry: &ModeRegistry) -> Result<(), Numora> {
+    fn validate_modes(&self, modes: &[String]) -> Result<(), Numora> {
         for mode in modes {
-            if !registry.has(mode) {
+            if !ModeRegistry::is_known(mode) {
                 return Err(Numora::EvaluationError(format!(
-                    "Unknown run mode '{}'. Available modes: {}",
-                    mode,
-                    registry.available_modes().join(", ")
+                    "Unknown run mode: {}",
+                    mode
                 )));
             }
         }
 
-        Ok(())
-    }
+        let execution_count = modes
+            .iter()
+            .filter(|mode| ModeRegistry::is_execution(mode))
+            .count();
 
-    fn validate_order(modes: &[String], registry: &ModeRegistry) -> Result<(), Numora> {
-        let mut output_mode_seen = false;
+        if execution_count == 0 {
+            return Err(Numora::EvaluationError(
+                "A run pipeline must start with an execution mode: calculator, physics, or solve"
+                    .to_string(),
+            ));
+        }
 
-        for mode in modes {
-            let info = registry
-                .get(mode)
-                .ok_or_else(|| Numora::EvaluationError(format!("Unknown run mode '{}'", mode)))?;
+        if execution_count > 1 {
+            return Err(Numora::EvaluationError(
+                "A run pipeline can only contain one execution mode".to_string(),
+            ));
+        }
 
-            if info.is_output() {
-                output_mode_seen = true;
-                continue;
-            }
+        let first_mode = modes
+            .first()
+            .map(|mode| mode.as_str())
+            .unwrap_or("calculator");
 
-            if output_mode_seen && info.is_execution() {
+        if !ModeRegistry::is_execution(first_mode) {
+            return Err(Numora::EvaluationError(format!(
+                "Invalid mode order: '{}' cannot run before an execution mode",
+                first_mode
+            )));
+        }
+
+        for mode in modes.iter().skip(1) {
+            if ModeRegistry::is_execution(mode) {
                 return Err(Numora::EvaluationError(format!(
-                    "Invalid run mode order: '{}' cannot run after an output mode. Use execution modes first, then output modes. Example: '@run calculator steps'",
+                    "Invalid mode order: execution mode '{}' must be first",
+                    mode
+                )));
+            }
+        }
+
+        // For now, output modes are terminal.
+        // Valid:
+        //   calculator steps
+        //   physics steps
+        // Invalid:
+        //   steps calculator
+        //   summary calculator
+        if let Some((index, mode)) = modes
+            .iter()
+            .enumerate()
+            .find(|(_, mode)| ModeRegistry::is_output(mode))
+        {
+            if index != modes.len() - 1 {
+                return Err(Numora::EvaluationError(format!(
+                    "Invalid mode order: output mode '{}' must be last",
                     mode
                 )));
             }
@@ -89,69 +115,68 @@ impl ModePipeline {
 mod tests {
     use super::*;
 
-    #[test]
-    fn calculator_steps_is_valid() {
-        let pipeline = ModePipeline::new(vec!["calculator".to_string(), "steps".to_string()]);
+    fn assert_valid(input: &[&str], expected: &[&str]) {
+        let pipeline = ModePipeline::new(input.iter().map(|mode| mode.to_string()).collect());
 
-        assert!(pipeline.is_ok());
-    }
-
-    #[test]
-    fn physics_steps_is_valid() {
-        let pipeline = ModePipeline::new(vec!["physics".to_string(), "steps".to_string()]);
-
-        assert!(pipeline.is_ok());
-    }
-
-    #[test]
-    fn solve_is_valid() {
-        let pipeline = ModePipeline::new(vec!["solve".to_string()]);
-
-        assert!(pipeline.is_ok());
-    }
-
-    #[test]
-    fn solve_steps_is_valid() {
-        let pipeline = ModePipeline::new(vec!["solve".to_string(), "steps".to_string()]);
-
-        assert!(pipeline.is_ok());
-    }
-
-    #[test]
-    fn steps_calculator_is_invalid() {
-        let pipeline = ModePipeline::new(vec!["steps".to_string(), "calculator".to_string()]);
-
-        assert!(pipeline.is_err());
-    }
-
-    #[test]
-    fn summary_calculator_is_invalid() {
-        let pipeline = ModePipeline::new(vec!["summary".to_string(), "calculator".to_string()]);
-
-        assert!(pipeline.is_err());
-    }
-
-    #[test]
-    fn unknown_mode_is_invalid() {
-        let pipeline = ModePipeline::new(vec!["unknown".to_string()]);
-
-        assert!(pipeline.is_err());
-    }
-
-    #[test]
-    fn steps_normalizes_to_calculator_steps() {
-        let pipeline = ModePipeline::new(vec!["steps".to_string()]).unwrap();
+        let context = pipeline.build_context().unwrap();
 
         assert_eq!(
-            pipeline.modes(),
-            &["calculator".to_string(), "steps".to_string()]
+            context.modes(),
+            expected
+                .iter()
+                .map(|mode| mode.to_string())
+                .collect::<Vec<_>>()
         );
+    }
+
+    fn assert_invalid(input: &[&str]) {
+        let pipeline = ModePipeline::new(input.iter().map(|mode| mode.to_string()).collect());
+
+        assert!(pipeline.build_context().is_err());
     }
 
     #[test]
     fn empty_modes_default_to_calculator() {
-        let pipeline = ModePipeline::new(vec![]).unwrap();
+        assert_valid(&[], &["calculator"]);
+    }
 
-        assert_eq!(pipeline.modes(), &["calculator".to_string()]);
+    #[test]
+    fn calculator_steps_is_valid() {
+        assert_valid(&["calculator", "steps"], &["calculator", "steps"]);
+    }
+
+    #[test]
+    fn physics_steps_is_valid() {
+        assert_valid(&["physics", "steps"], &["physics", "steps"]);
+    }
+
+    #[test]
+    fn solve_is_valid() {
+        assert_valid(&["solve"], &["solve"]);
+    }
+
+    #[test]
+    fn solve_steps_is_valid() {
+        assert_valid(&["solve", "steps"], &["solve", "steps"]);
+    }
+
+    #[test]
+    fn steps_normalizes_to_calculator_steps() {
+        assert_valid(&["steps"], &["calculator", "steps"]);
+    }
+
+    #[test]
+    fn steps_calculator_is_invalid() {
+        assert_invalid(&["steps", "calculator"]);
+    }
+
+    #[test]
+    fn summary_calculator_is_invalid() {
+        assert_invalid(&["summary", "calculator"]);
+    }
+
+    #[test]
+    fn unknown_mode_is_invalid() {
+        assert_invalid(&["unknown"]);
     }
 }

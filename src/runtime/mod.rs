@@ -1,7 +1,8 @@
 use crate::config::LanguageConfig;
 use crate::environment::Environment;
 use crate::error::Numora;
-use crate::program::{evaluate_expression, run_math_program};
+use crate::modes::{ModeExecutor, ModePipeline};
+use crate::program::{detect_run_modes, evaluate_expression};
 
 pub struct Runtime {
     config: LanguageConfig,
@@ -12,44 +13,32 @@ impl Runtime {
         Self { config }
     }
 
+    // Keep old V1/V2 call style:
+    // let rt = Runtime::new(...);
+    // rt.run("1 + 2")
     pub fn run(&self, source: &str) -> Result<String, Numora> {
-        let source = source.trim();
-
-        if source.is_empty() {
-            return Err(Numora::ParserError("Empty input".to_string()));
-        }
-
-        self.validate_feature_access(source)?;
-
-        if Self::looks_like_math_program_source(source) {
-            run_math_program(source)
-        } else {
-            Self::evaluate_direct_expression(source)
-        }
+        self.run_with_config(source)
     }
 
+    // Optional helper if any code wants:
+    // Runtime::run_default("1 + 2")
     pub fn run_default(source: &str) -> Result<String, Numora> {
-        let runtime = Self::new(LanguageConfig::default());
+        let runtime = Runtime::new(LanguageConfig::default());
         runtime.run(source)
     }
 
     pub fn run_with_config(&self, source: &str) -> Result<String, Numora> {
-        self.run(source)
-    }
+        self.validate_feature_access(source)?;
 
-    fn evaluate_direct_expression(source: &str) -> Result<String, Numora> {
-        let env = Environment::new();
-        let value = evaluate_expression(source, &env)?;
-
-        Ok(format!("result: {}", Self::format_number(value.number)))
-    }
-
-    fn format_number(number: f64) -> String {
-        if number.fract() == 0.0 {
-            format!("{}", number as i64)
-        } else {
-            format!("{}", number)
+        if self.looks_like_direct_expression(source) {
+            return self.run_direct_expression(source);
         }
+
+        let requested_modes = detect_run_modes(source);
+        let pipeline = ModePipeline::new(requested_modes);
+        let context = pipeline.build_context()?;
+
+        ModeExecutor::execute(source, &context)
     }
 
     fn validate_feature_access(&self, source: &str) -> Result<(), Numora> {
@@ -68,16 +57,205 @@ impl Runtime {
         Ok(())
     }
 
-    fn looks_like_math_program_source(source: &str) -> bool {
-        source.lines().any(|line| {
-            let line = line.trim();
+    fn looks_like_direct_expression(&self, source: &str) -> bool {
+        let trimmed = source.trim();
 
-            line.starts_with("@run")
-                || line == "given:"
-                || line == "formula:"
-                || line == "equation:"
-                || line == "find:"
-                || line == "solve:"
-        })
+        if trimmed.is_empty() {
+            return false;
+        }
+
+        if trimmed.contains('\n') {
+            return false;
+        }
+
+        if trimmed.starts_with("@run") {
+            return false;
+        }
+
+        if trimmed.contains("given:") || trimmed.contains("formula:") || trimmed.contains("find:") {
+            return false;
+        }
+
+        true
+    }
+
+    fn run_direct_expression(&self, source: &str) -> Result<String, Numora> {
+        let mut environment = Environment::new();
+        let value = evaluate_expression(source, &mut environment)?;
+
+        Ok(format!("result: {}", format_number(value.number)))
+    }
+}
+
+fn format_number(number: f64) -> String {
+    if number.fract() == 0.0 {
+        format!("{}", number as i64)
+    } else {
+        format!("{}", number)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_expression_still_works() {
+        let runtime = Runtime::new(LanguageConfig::default());
+        let result = runtime.run("1 + 2 * 3").unwrap();
+
+        assert!(result.contains("7"));
+    }
+
+    #[test]
+    fn run_steps_keeps_v1_compatibility() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+@run steps
+
+given:
+    x = 1
+    y = 2
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+        let result = runtime.run(source).unwrap();
+
+        assert!(
+            result.contains("3")
+                || result.to_lowercase().contains("step")
+                || result.to_lowercase().contains("result")
+        );
+    }
+
+    #[test]
+    fn calculator_steps_is_valid() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+@run calculator steps
+
+given:
+    x = 1
+    y = 2
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+        assert!(runtime.run(source).is_ok());
+    }
+
+    #[test]
+    fn physics_steps_is_valid() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+@run physics steps
+
+given:
+    x = 1
+    y = 2
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+        assert!(runtime.run(source).is_ok());
+    }
+
+    #[test]
+    fn solve_is_valid() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+    @run solve
+
+    given:
+        x = 2
+
+    equation:
+        y = x + 3
+
+    solve:
+        y
+    "#;
+
+        assert!(runtime.run(source).is_ok());
+    }
+
+    #[test]
+    fn steps_calculator_is_invalid() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+@run steps calculator
+
+given:
+    x = 1
+
+formula:
+    result = x
+
+find:
+    result
+"#;
+
+        assert!(runtime.run(source).is_err());
+    }
+
+    #[test]
+    fn summary_calculator_is_invalid() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+@run summary calculator
+
+given:
+    x = 1
+
+formula:
+    result = x
+
+find:
+    result
+"#;
+
+        assert!(runtime.run(source).is_err());
+    }
+
+    #[test]
+    fn unknown_mode_is_invalid() {
+        let runtime = Runtime::new(LanguageConfig::default());
+
+        let source = r#"
+@run unknown
+
+given:
+    x = 1
+
+formula:
+    result = x
+
+find:
+    result
+"#;
+
+        let error = runtime.run(source).unwrap_err();
+        let message = format!("{:?}", error);
+
+        assert!(message.contains("Unknown run mode"));
     }
 }

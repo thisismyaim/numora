@@ -1,0 +1,10 @@
+@run steps calculator
+
+given:
+    x = 10
+
+formula:
+    result = x + 5
+
+find:
+    result

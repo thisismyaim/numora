@@ -1,63 +1,34 @@
-use std::collections::HashMap;
+use crate::modes::mode::{Mode, ModeCategory};
 
-use crate::modes::mode::ModeInfo;
-
-#[derive(Debug, Clone)]
-pub struct ModeRegistry {
-    modes: HashMap<String, ModeInfo>,
-}
+pub struct ModeRegistry;
 
 impl ModeRegistry {
-    pub fn new() -> Self {
-        let mut registry = Self {
-            modes: HashMap::new(),
-        };
+    pub fn get(name: &str) -> Option<Mode> {
+        match name {
+            "calculator" => Some(Mode::new("calculator", ModeCategory::Execution)),
+            "physics" => Some(Mode::new("physics", ModeCategory::Execution)),
+            "solve" => Some(Mode::new("solve", ModeCategory::Execution)),
 
-        // Execution / domain modes
-        registry.register_execution("calculator");
-        registry.register_execution("physics");
+            "steps" => Some(Mode::new("steps", ModeCategory::Output)),
+            "summary" => Some(Mode::new("summary", ModeCategory::Output)),
 
-        // V1 compatibility:
-        // Some old tests and examples use:
-        //
-        // @run solve
-        //
-        // In V2, solve is treated as an execution mode.
-        registry.register_execution("solve");
-
-        // Output / explanation modes
-        registry.register_output("steps");
-        registry.register_output("summary");
-
-        registry
+            _ => None,
+        }
     }
 
-    pub fn get(&self, name: &str) -> Option<&ModeInfo> {
-        self.modes.get(name)
+    pub fn is_known(name: &str) -> bool {
+        Self::get(name).is_some()
     }
 
-    pub fn has(&self, name: &str) -> bool {
-        self.modes.contains_key(name)
+    pub fn is_execution(name: &str) -> bool {
+        Self::get(name)
+            .map(|mode| mode.is_execution())
+            .unwrap_or(false)
     }
 
-    pub fn available_modes(&self) -> Vec<String> {
-        let mut modes = self.modes.keys().cloned().collect::<Vec<_>>();
-        modes.sort();
-        modes
-    }
-
-    fn register_execution(&mut self, name: &str) {
-        self.modes
-            .insert(name.to_string(), ModeInfo::execution(name));
-    }
-
-    fn register_output(&mut self, name: &str) {
-        self.modes.insert(name.to_string(), ModeInfo::output(name));
-    }
-}
-
-impl Default for ModeRegistry {
-    fn default() -> Self {
-        Self::new()
+    pub fn is_output(name: &str) -> bool {
+        Self::get(name)
+            .map(|mode| mode.is_output())
+            .unwrap_or(false)
     }
 }

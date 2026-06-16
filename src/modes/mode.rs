@@ -1,35 +1,25 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ModeKind {
+pub enum ModeCategory {
     Execution,
     Output,
 }
 
-#[derive(Debug, Clone)]
-pub struct ModeInfo {
-    pub name: String,
-    pub kind: ModeKind,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mode {
+    pub name: &'static str,
+    pub category: ModeCategory,
 }
 
-impl ModeInfo {
-    pub fn execution(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            kind: ModeKind::Execution,
-        }
-    }
-
-    pub fn output(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            kind: ModeKind::Output,
-        }
+impl Mode {
+    pub const fn new(name: &'static str, category: ModeCategory) -> Self {
+        Self { name, category }
     }
 
     pub fn is_execution(&self) -> bool {
-        self.kind == ModeKind::Execution
+        self.category == ModeCategory::Execution
     }
 
     pub fn is_output(&self) -> bool {
-        self.kind == ModeKind::Output
+        self.category == ModeCategory::Output
     }
 }

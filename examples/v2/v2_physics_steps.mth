@@ -1,0 +1,11 @@
+@run physics steps
+
+given:
+    mass = 10
+    acceleration = 9.8
+
+formula:
+    force = mass * acceleration
+
+find:
+    force

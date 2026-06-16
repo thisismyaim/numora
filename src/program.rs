@@ -3,7 +3,6 @@ use crate::error::Numora;
 use crate::evaluator::evaluate;
 use crate::format::format_number;
 use crate::lexer::Lexer;
-use crate::modes::pipeline::ModePipeline;
 use crate::parser::Parser;
 use crate::solver::{parse_equation, solve_equation, Equation};
 use crate::tracer::trace_assignment;
@@ -24,17 +23,16 @@ pub fn detect_run_modes(source: &str) -> Vec<String> {
         let trimmed = line.trim();
 
         if trimmed.starts_with("@run") {
-            let parts: Vec<&str> = trimmed.split_whitespace().collect();
-
-            if parts.len() <= 1 {
-                return vec!["calculator".to_string()];
-            }
-
-            return parts[1..].iter().map(|mode| mode.to_string()).collect();
+            return trimmed
+                .trim_start_matches("@run")
+                .split_whitespace()
+                .map(|mode| mode.trim().to_lowercase())
+                .filter(|mode| !mode.is_empty())
+                .collect();
         }
     }
 
-    vec!["calculator".to_string()]
+    vec![]
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +43,6 @@ pub struct Assignment {
 
 pub fn run_math_program(source: &str) -> Result<String, Numora> {
     let program = parse_math_program(source)?;
-    let _pipeline = ModePipeline::new(program.run_modes.clone())?;
 
     if program.run_modes.iter().any(|mode| mode == "solve") {
         return run_solve_program(&program);
