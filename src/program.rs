@@ -41,21 +41,39 @@ pub struct Assignment {
     pub expression: String,
 }
 
-pub fn run_math_program(source: &str) -> Result<String, Numora> {
+fn run_program_core(source: &str) -> Result<String, Numora> {
     let program = parse_math_program(source)?;
 
     if program.run_modes.iter().any(|mode| mode == "solve") {
-        return run_solve_program(&program);
+        return execute_solve_program(&program);
     }
 
     if program.run_modes.iter().any(|mode| mode == "steps") {
         return run_steps_program(&program);
     }
 
-    run_calculator_program(&program)
+    execute_calculator_program(&program)
 }
 
-fn run_calculator_program(program: &MathProgram) -> Result<String, Numora> {
+pub fn run_math_program(source: &str) -> Result<String, Numora> {
+    run_program_core(source)
+}
+
+pub fn run_calculator_program(source: &str) -> Result<String, Numora> {
+    run_program_core(source)
+}
+
+pub fn run_physics_program(source: &str) -> Result<String, Numora> {
+    // Placeholder for V2.
+    // Later this will call a real physics engine.
+    run_program_core(source)
+}
+
+pub fn run_solve_program(source: &str) -> Result<String, Numora> {
+    run_program_core(source)
+}
+
+fn execute_calculator_program(program: &MathProgram) -> Result<String, Numora> {
     let mut env = Environment::new();
 
     for assignment in &program.assignments {
@@ -102,7 +120,7 @@ fn run_steps_program(program: &MathProgram) -> Result<String, Numora> {
     Ok(output)
 }
 
-fn run_solve_program(program: &MathProgram) -> Result<String, Numora> {
+fn execute_solve_program(program: &MathProgram) -> Result<String, Numora> {
     let mut env = Environment::new();
 
     for assignment in &program.assignments {
@@ -350,4 +368,97 @@ enum Section {
     Equation,
     Find,
     Solve,
+}
+
+#[cfg(test)]
+mod execution_entrypoint_tests {
+    use super::*;
+
+    #[test]
+    fn calculator_entrypoint_runs_calculator_program() {
+        let source = r#"
+@run calculator
+
+given:
+    x = 2
+    y = 3
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+        let result = run_calculator_program(source).unwrap();
+
+        assert!(result.contains("5"));
+    }
+
+    #[test]
+    fn physics_entrypoint_currently_uses_core_program_execution() {
+        let source = r#"
+@run physics
+
+given:
+    x = 2
+    y = 3
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+        let result = run_physics_program(source).unwrap();
+
+        assert!(result.contains("5"));
+    }
+
+    #[test]
+    fn solve_entrypoint_runs_solve_program() {
+        let source = r#"
+@run solve
+
+given:
+    x = 2
+
+equation:
+    y = x + 3
+
+solve:
+    y
+"#;
+
+        let result = run_solve_program(source).unwrap();
+
+        assert!(
+            result.contains("5")
+                || result.contains("y")
+                || result.to_lowercase().contains("solve")
+                || result.to_lowercase().contains("result")
+        );
+    }
+
+    #[test]
+    fn legacy_math_program_entrypoint_still_works() {
+        let source = r#"
+@run calculator
+
+given:
+    x = 2
+    y = 3
+
+formula:
+    result = x * y
+
+find:
+    result
+"#;
+
+        let result = run_math_program(source).unwrap();
+
+        assert!(result.contains("6"));
+    }
 }

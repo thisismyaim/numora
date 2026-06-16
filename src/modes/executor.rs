@@ -1,6 +1,6 @@
 use crate::error::Numora;
 use crate::modes::ModeContext;
-use crate::program::run_math_program;
+use crate::program::{run_calculator_program, run_physics_program, run_solve_program};
 
 pub struct ModeExecutor;
 
@@ -19,24 +19,15 @@ impl ModeExecutor {
     }
 
     fn execute_calculator(source: &str, _context: &ModeContext) -> Result<String, Numora> {
-        run_math_program(source)
+        run_calculator_program(source)
     }
 
     fn execute_physics(source: &str, _context: &ModeContext) -> Result<String, Numora> {
-        // V2 placeholder:
-        // physics is accepted by the mode pipeline,
-        // but real physics-specific execution will come later.
-        //
-        // For now, use calculator execution so:
-        // @run physics
-        // @run physics steps
-        // do not break runtime behavior.
-        run_math_program(source)
+        run_physics_program(source)
     }
 
     fn execute_solve(source: &str, _context: &ModeContext) -> Result<String, Numora> {
-        // Keep existing solve behavior inside program.rs.
-        run_math_program(source)
+        run_solve_program(source)
     }
 }
 
@@ -69,7 +60,7 @@ find:
     }
 
     #[test]
-    fn physics_execution_uses_calculator_placeholder() {
+    fn physics_execution_uses_physics_program_entrypoint() {
         let context = ModeContext::new(vec!["physics".to_string()]);
 
         let source = r#"
@@ -92,7 +83,7 @@ find:
     }
 
     #[test]
-    fn solve_execution_keeps_existing_behavior() {
+    fn solve_execution_uses_solve_program_entrypoint() {
         let context = ModeContext::new(vec!["solve".to_string()]);
 
         let source = r#"
