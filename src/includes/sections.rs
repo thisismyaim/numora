@@ -6,10 +6,10 @@ pub struct MathSections {
     leading_lines: Vec<String>,
     given_lines: Vec<String>,
     formula_lines: Vec<String>,
+    simplify_lines: Vec<String>,
     equation_lines: Vec<String>,
     find_lines: Vec<String>,
     solve_lines: Vec<String>,
-    trailing_lines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +17,7 @@ enum Section {
     Leading,
     Given,
     Formula,
+    Simplify,
     Equation,
     Find,
     Solve,
@@ -46,6 +47,10 @@ impl MathSections {
                     current_section = Section::Formula;
                     continue;
                 }
+                "simplify:" => {
+                    current_section = Section::Simplify;
+                    continue;
+                }
                 "equation:" => {
                     current_section = Section::Equation;
                     continue;
@@ -65,6 +70,7 @@ impl MathSections {
                 Section::Leading => sections.leading_lines.push(line.to_string()),
                 Section::Given => sections.given_lines.push(line.to_string()),
                 Section::Formula => sections.formula_lines.push(line.to_string()),
+                Section::Simplify => sections.simplify_lines.push(line.to_string()),
                 Section::Equation => sections.equation_lines.push(line.to_string()),
                 Section::Find => sections.find_lines.push(line.to_string()),
                 Section::Solve => sections.solve_lines.push(line.to_string()),
@@ -82,10 +88,10 @@ impl MathSections {
         self.leading_lines.extend(other.leading_lines);
         self.given_lines.extend(other.given_lines);
         self.formula_lines.extend(other.formula_lines);
+        self.simplify_lines.extend(other.simplify_lines);
         self.equation_lines.extend(other.equation_lines);
         self.find_lines.extend(other.find_lines);
         self.solve_lines.extend(other.solve_lines);
-        self.trailing_lines.extend(other.trailing_lines);
     }
 
     pub fn to_source(&self) -> String {
@@ -98,6 +104,7 @@ impl MathSections {
 
         Self::push_section(&mut output, "given:", &self.given_lines);
         Self::push_section(&mut output, "formula:", &self.formula_lines);
+        Self::push_section(&mut output, "simplify:", &self.simplify_lines);
         Self::push_section(&mut output, "equation:", &self.equation_lines);
         Self::push_section(&mut output, "find:", &self.find_lines);
         Self::push_section(&mut output, "solve:", &self.solve_lines);
@@ -193,6 +200,31 @@ find:
         assert_eq!(merged.matches("formula:").count(), 1);
         assert!(merged.contains("a = 1 + 2"));
         assert!(merged.contains("b = a + 3"));
+    }
+
+    #[test]
+    fn merges_simplify_sections() {
+        let a = r#"
+@run algebra steps
+
+simplify:
+    a = x + 0
+"#;
+
+        let b = r#"
+simplify:
+    b = 1 * y
+
+find:
+    a
+    b
+"#;
+
+        let merged = merge_sources(&[a.to_string(), b.to_string()]).unwrap();
+
+        assert_eq!(merged.matches("simplify:").count(), 1);
+        assert!(merged.contains("a = x + 0"));
+        assert!(merged.contains("b = 1 * y"));
     }
 
     #[test]

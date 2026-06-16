@@ -1,0 +1,11 @@
+@run algebra steps
+
+simplify:
+    result = x + 0
+    second = 1 * y
+    third = 2 + 3 * 4
+
+find:
+    result
+    second
+    third

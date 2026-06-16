@@ -68,9 +68,10 @@ pub fn run_calculator_program(source: &str) -> Result<String, Numora> {
 }
 
 pub fn run_algebra_program(source: &str) -> Result<String, Numora> {
-    // Algebra V1 foundation:
-    // For now, reuse the existing program core.
-    // Later this will call a real algebra engine.
+    if crate::algebra::source_contains_simplify_section(source) {
+        return crate::algebra::run_algebra_simplify_program(source);
+    }
+
     run_program_core(source)
 }
 
