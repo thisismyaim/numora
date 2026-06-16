@@ -1,4 +1,5 @@
 use crate::error::Numora;
+use crate::includes::sections::merge_sources;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,12 +25,18 @@ impl IncludeResolver {
         base_dir: &Path,
         visited: &mut HashSet<PathBuf>,
     ) -> Result<String, Numora> {
-        let mut expanded = String::new();
+        let mut sources = Vec::new();
+        let mut current_source = String::new();
 
         for line in source.lines() {
             let trimmed = line.trim();
 
             if let Some(include_path) = Self::parse_include(trimmed)? {
+                if !current_source.trim().is_empty() {
+                    sources.push(current_source.clone());
+                    current_source.clear();
+                }
+
                 let full_path = base_dir.join(&include_path);
                 let canonical_path = full_path.canonicalize().map_err(|error| {
                     Numora::EvaluationError(format!(
@@ -61,17 +68,20 @@ impl IncludeResolver {
                 let included_expanded =
                     Self::expand_recursive(&included_source, included_base_dir, visited)?;
 
-                expanded.push_str(&included_expanded);
-                expanded.push('\n');
+                sources.push(included_expanded);
 
                 visited.remove(&canonical_path);
             } else {
-                expanded.push_str(line);
-                expanded.push('\n');
+                current_source.push_str(line);
+                current_source.push('\n');
             }
         }
 
-        Ok(expanded)
+        if !current_source.trim().is_empty() {
+            sources.push(current_source);
+        }
+
+        merge_sources(&sources)
     }
 
     fn parse_include(line: &str) -> Result<Option<PathBuf>, Numora> {
@@ -141,8 +151,10 @@ find:
 
         let expanded = IncludeResolver::expand_source_with_base(source, &dir).unwrap();
 
+        assert!(expanded.contains("@run calculator"));
         assert!(expanded.contains("x = 2"));
         assert!(expanded.contains("result = x + 3"));
+        assert_eq!(expanded.matches("given:").count(), 1);
     }
 
     #[test]
@@ -183,6 +195,48 @@ find:
 
         assert!(expanded.contains("x = 10"));
         assert!(expanded.contains("result = x + 5"));
+        assert_eq!(expanded.matches("given:").count(), 1);
+    }
+
+    #[test]
+    fn merges_multiple_given_sections_from_includes() {
+        let dir = temp_test_dir("multi_given");
+
+        fs::write(
+            dir.join("a.mth"),
+            r#"
+given:
+    x = 2
+"#,
+        )
+        .unwrap();
+
+        fs::write(
+            dir.join("b.mth"),
+            r#"
+given:
+    y = 3
+"#,
+        )
+        .unwrap();
+
+        let source = r#"
+@run calculator
+@include "a.mth"
+@include "b.mth"
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+        let expanded = IncludeResolver::expand_source_with_base(source, &dir).unwrap();
+
+        assert_eq!(expanded.matches("given:").count(), 1);
+        assert!(expanded.contains("x = 2"));
+        assert!(expanded.contains("y = 3"));
     }
 
     #[test]

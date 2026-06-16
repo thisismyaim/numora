@@ -353,3 +353,54 @@ find:
 
     assert!(result.contains("5"));
 }
+
+#[test]
+fn runtime_merges_sections_from_multiple_include_files() {
+    use std::fs;
+
+    let runtime = Runtime::new(LanguageConfig::default());
+
+    let mut dir = std::env::temp_dir();
+    dir.push("numora_runtime_multi_include_test");
+
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+
+    fs::write(
+        dir.join("x.mth"),
+        r#"
+given:
+    x = 2
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        dir.join("y.mth"),
+        r#"
+given:
+    y = 3
+"#,
+    )
+    .unwrap();
+
+    let source = format!(
+        r#"
+@run calculator
+@include "{}"
+@include "{}"
+
+formula:
+    result = x + y
+
+find:
+    result
+"#,
+        dir.join("x.mth").display(),
+        dir.join("y.mth").display()
+    );
+
+    let result = runtime.run(&source).unwrap();
+
+    assert!(result.contains("5"));
+}
