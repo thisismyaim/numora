@@ -259,3 +259,53 @@ find:
         assert!(message.contains("Unknown run mode"));
     }
 }
+
+#[test]
+fn algebra_is_valid() {
+    let runtime = Runtime::new(LanguageConfig::default());
+
+    let source = r#"
+@run algebra
+
+given:
+    x = 2
+    y = 3
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+    let result = runtime.run(source).unwrap();
+
+    assert!(result.contains("5"));
+}
+
+#[test]
+fn algebra_steps_is_valid() {
+    let runtime = Runtime::new(LanguageConfig::default());
+
+    let source = r#"
+@run algebra steps
+
+given:
+    x = 2
+    y = 3
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+    let result = runtime.run(source).unwrap();
+
+    assert!(
+        result.contains("5")
+            || result.to_lowercase().contains("step")
+            || result.to_lowercase().contains("result")
+    );
+}

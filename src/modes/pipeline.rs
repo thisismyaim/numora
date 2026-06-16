@@ -55,7 +55,7 @@ impl ModePipeline {
 
         if execution_count == 0 {
             return Err(Numora::EvaluationError(
-                "A run pipeline must start with an execution mode: calculator, physics, or solve"
+                "A run pipeline must start with an execution mode: calculator, algebra, physics, or solve"
                     .to_string(),
             ));
         }
@@ -87,13 +87,6 @@ impl ModePipeline {
             }
         }
 
-        // For now, output modes are terminal.
-        // Valid:
-        //   calculator steps
-        //   physics steps
-        // Invalid:
-        //   steps calculator
-        //   summary calculator
         if let Some((index, mode)) = modes
             .iter()
             .enumerate()
@@ -146,6 +139,16 @@ mod tests {
     }
 
     #[test]
+    fn algebra_is_valid() {
+        assert_valid(&["algebra"], &["algebra"]);
+    }
+
+    #[test]
+    fn algebra_steps_is_valid() {
+        assert_valid(&["algebra", "steps"], &["algebra", "steps"]);
+    }
+
+    #[test]
     fn physics_steps_is_valid() {
         assert_valid(&["physics", "steps"], &["physics", "steps"]);
     }
@@ -168,6 +171,21 @@ mod tests {
     #[test]
     fn steps_calculator_is_invalid() {
         assert_invalid(&["steps", "calculator"]);
+    }
+
+    #[test]
+    fn steps_algebra_is_invalid() {
+        assert_invalid(&["steps", "algebra"]);
+    }
+
+    #[test]
+    fn algebra_calculator_is_invalid() {
+        assert_invalid(&["algebra", "calculator"]);
+    }
+
+    #[test]
+    fn calculator_algebra_is_invalid() {
+        assert_invalid(&["calculator", "algebra"]);
     }
 
     #[test]

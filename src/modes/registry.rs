@@ -6,6 +6,7 @@ impl ModeRegistry {
     pub fn get(name: &str) -> Option<Mode> {
         match name {
             "calculator" => Some(Mode::new("calculator", ModeCategory::Execution)),
+            "algebra" => Some(Mode::new("algebra", ModeCategory::Execution)),
             "physics" => Some(Mode::new("physics", ModeCategory::Execution)),
             "solve" => Some(Mode::new("solve", ModeCategory::Execution)),
 

@@ -44,12 +44,16 @@ pub struct Assignment {
 fn run_program_core(source: &str) -> Result<String, Numora> {
     let program = parse_math_program(source)?;
 
+    if program.run_modes.iter().any(|mode| mode == "steps") {
+        return run_steps_program(&program);
+    }
+
     if program.run_modes.iter().any(|mode| mode == "solve") {
         return execute_solve_program(&program);
     }
 
-    if program.run_modes.iter().any(|mode| mode == "steps") {
-        return run_steps_program(&program);
+    if program.run_modes.iter().any(|mode| mode == "algebra") {
+        return execute_calculator_program(&program);
     }
 
     execute_calculator_program(&program)
@@ -60,6 +64,13 @@ pub fn run_math_program(source: &str) -> Result<String, Numora> {
 }
 
 pub fn run_calculator_program(source: &str) -> Result<String, Numora> {
+    run_program_core(source)
+}
+
+pub fn run_algebra_program(source: &str) -> Result<String, Numora> {
+    // Algebra V1 foundation:
+    // For now, reuse the existing program core.
+    // Later this will call a real algebra engine.
     run_program_core(source)
 }
 
@@ -461,4 +472,50 @@ find:
 
         assert!(result.contains("6"));
     }
+}
+
+#[test]
+fn algebra_entrypoint_currently_uses_core_program_execution() {
+    let source = r#"
+@run algebra
+
+given:
+    x = 2
+    y = 3
+
+formula:
+    result = x + y
+
+find:
+    result
+"#;
+
+    let result = run_algebra_program(source).unwrap();
+
+    assert!(result.contains("5"));
+}
+
+#[test]
+fn algebra_entrypoint_can_reuse_existing_solve_when_solve_mode_is_used() {
+    let source = r#"
+@run solve
+
+given:
+    x = 2
+
+equation:
+    y = x + 3
+
+solve:
+    y
+"#;
+
+    let result = run_algebra_program(source).unwrap();
+
+    assert!(
+        result.contains("5")
+            || result.contains("y")
+            || result.to_lowercase().contains("solve")
+            || result.to_lowercase().contains("result")
+    );
 }

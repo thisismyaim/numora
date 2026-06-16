@@ -1,6 +1,8 @@
 use crate::error::Numora;
 use crate::modes::ModeContext;
-use crate::program::{run_calculator_program, run_physics_program, run_solve_program};
+use crate::program::{
+    run_algebra_program, run_calculator_program, run_physics_program, run_solve_program,
+};
 
 pub struct ModeExecutor;
 
@@ -8,6 +10,7 @@ impl ModeExecutor {
     pub fn execute(source: &str, context: &ModeContext) -> Result<String, Numora> {
         match context.execution_mode() {
             "calculator" => Self::execute_calculator(source, context),
+            "algebra" => Self::execute_algebra(source, context),
             "physics" => Self::execute_physics(source, context),
             "solve" => Self::execute_solve(source, context),
 
@@ -20,6 +23,10 @@ impl ModeExecutor {
 
     fn execute_calculator(source: &str, _context: &ModeContext) -> Result<String, Numora> {
         run_calculator_program(source)
+    }
+
+    fn execute_algebra(source: &str, _context: &ModeContext) -> Result<String, Numora> {
+        run_algebra_program(source)
     }
 
     fn execute_physics(source: &str, _context: &ModeContext) -> Result<String, Numora> {
@@ -42,6 +49,29 @@ mod tests {
 
         let source = r#"
 @run calculator
+
+given:
+    x = 1
+    y = 2
+
+formula:
+    result = x + y * 3
+
+find:
+    result
+"#;
+
+        let result = ModeExecutor::execute(source, &context).unwrap();
+
+        assert!(result.contains("7"));
+    }
+
+    #[test]
+    fn algebra_execution_uses_algebra_program_entrypoint() {
+        let context = ModeContext::new(vec!["algebra".to_string()]);
+
+        let source = r#"
+@run algebra
 
 given:
     x = 1
