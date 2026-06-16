@@ -5,6 +5,7 @@ pub mod environment;
 pub mod error;
 pub mod evaluator;
 pub mod format;
+pub mod includes;
 pub mod lexer;
 pub mod modes;
 pub mod parser;

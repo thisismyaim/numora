@@ -1,6 +1,7 @@
 use crate::config::LanguageConfig;
 use crate::environment::Environment;
 use crate::error::Numora;
+use crate::includes::IncludeResolver;
 use crate::modes::{ModeExecutor, ModePipeline};
 use crate::program::{detect_run_modes, evaluate_expression};
 
@@ -34,11 +35,13 @@ impl Runtime {
             return self.run_direct_expression(source);
         }
 
-        let requested_modes = detect_run_modes(source);
+        let expanded_source = IncludeResolver::expand_source(source)?;
+
+        let requested_modes = detect_run_modes(&expanded_source);
         let pipeline = ModePipeline::new(requested_modes);
         let context = pipeline.build_context()?;
 
-        ModeExecutor::execute(source, &context)
+        ModeExecutor::execute(&expanded_source, &context)
     }
 
     fn validate_feature_access(&self, source: &str) -> Result<(), Numora> {
@@ -308,4 +311,45 @@ find:
             || result.to_lowercase().contains("step")
             || result.to_lowercase().contains("result")
     );
+}
+
+#[test]
+fn runtime_expands_include_file() {
+    use std::fs;
+
+    let runtime = Runtime::new(LanguageConfig::default());
+
+    let mut dir = std::env::temp_dir();
+    dir.push("numora_runtime_include_test");
+
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+
+    fs::write(
+        dir.join("common.mth"),
+        r#"
+given:
+    x = 2
+    y = 3
+"#,
+    )
+    .unwrap();
+
+    let source = format!(
+        r#"
+@run calculator
+@include "{}"
+
+formula:
+    result = x + y
+
+find:
+    result
+"#,
+        dir.join("common.mth").display()
+    );
+
+    let result = runtime.run(&source).unwrap();
+
+    assert!(result.contains("5"));
 }
