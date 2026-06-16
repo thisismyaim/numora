@@ -34,10 +34,10 @@ impl ModePipeline {
 
         // V1 compatibility:
         //
-        // Old V1:
         // @run steps
         //
-        // New V2 meaning:
+        // means:
+        //
         // @run calculator steps
         if run_modes.len() == 1 && run_modes[0] == "steps" {
             return vec!["calculator".to_string(), "steps".to_string()];
@@ -99,6 +99,20 @@ mod tests {
     #[test]
     fn physics_steps_is_valid() {
         let pipeline = ModePipeline::new(vec!["physics".to_string(), "steps".to_string()]);
+
+        assert!(pipeline.is_ok());
+    }
+
+    #[test]
+    fn solve_is_valid() {
+        let pipeline = ModePipeline::new(vec!["solve".to_string()]);
+
+        assert!(pipeline.is_ok());
+    }
+
+    #[test]
+    fn solve_steps_is_valid() {
+        let pipeline = ModePipeline::new(vec!["solve".to_string(), "steps".to_string()]);
 
         assert!(pipeline.is_ok());
     }

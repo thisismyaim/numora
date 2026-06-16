@@ -17,6 +17,14 @@ impl ModeRegistry {
         registry.register_execution("calculator");
         registry.register_execution("physics");
 
+        // V1 compatibility:
+        // Some old tests and examples use:
+        //
+        // @run solve
+        //
+        // In V2, solve is treated as an execution mode.
+        registry.register_execution("solve");
+
         // Output / explanation modes
         registry.register_output("steps");
         registry.register_output("summary");

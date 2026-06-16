@@ -1,6 +1,7 @@
 use crate::config::LanguageConfig;
+use crate::environment::Environment;
 use crate::error::Numora;
-use crate::program::run_math_program;
+use crate::program::{evaluate_expression, run_math_program};
 
 pub struct Runtime {
     config: LanguageConfig,
@@ -12,13 +13,43 @@ impl Runtime {
     }
 
     pub fn run(&self, source: &str) -> Result<String, Numora> {
-        self.validate_feature_access(source)?;
+        let source = source.trim();
 
-        if self.looks_like_math_program(source) {
-            return run_math_program(source);
+        if source.is_empty() {
+            return Err(Numora::ParserError("Empty input".to_string()));
         }
 
-        run_math_program(source)
+        self.validate_feature_access(source)?;
+
+        if Self::looks_like_math_program_source(source) {
+            run_math_program(source)
+        } else {
+            Self::evaluate_direct_expression(source)
+        }
+    }
+
+    pub fn run_default(source: &str) -> Result<String, Numora> {
+        let runtime = Self::new(LanguageConfig::default());
+        runtime.run(source)
+    }
+
+    pub fn run_with_config(&self, source: &str) -> Result<String, Numora> {
+        self.run(source)
+    }
+
+    fn evaluate_direct_expression(source: &str) -> Result<String, Numora> {
+        let env = Environment::new();
+        let value = evaluate_expression(source, &env)?;
+
+        Ok(format!("result: {}", Self::format_number(value.number)))
+    }
+
+    fn format_number(number: f64) -> String {
+        if number.fract() == 0.0 {
+            format!("{}", number as i64)
+        } else {
+            format!("{}", number)
+        }
     }
 
     fn validate_feature_access(&self, source: &str) -> Result<(), Numora> {
@@ -37,14 +68,16 @@ impl Runtime {
         Ok(())
     }
 
-    fn looks_like_math_program(&self, source: &str) -> bool {
-        source.contains("@run")
-            || source.contains("given:")
-            || source.contains("formula:")
-            || source.contains("equation:")
-            || source.contains("find:")
-            || source.contains("solve:")
-            || source.contains("input:")
-            || source.contains("unit:")
+    fn looks_like_math_program_source(source: &str) -> bool {
+        source.lines().any(|line| {
+            let line = line.trim();
+
+            line.starts_with("@run")
+                || line == "given:"
+                || line == "formula:"
+                || line == "equation:"
+                || line == "find:"
+                || line == "solve:"
+        })
     }
 }

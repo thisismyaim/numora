@@ -23,7 +23,11 @@ impl ModeContext {
     pub fn primary_execution_mode(&self) -> &str {
         self.modes
             .iter()
-            .find(|mode| mode.as_str() == "calculator" || mode.as_str() == "physics")
+            .find(|mode| {
+                mode.as_str() == "calculator"
+                    || mode.as_str() == "physics"
+                    || mode.as_str() == "solve"
+            })
             .map(|mode| mode.as_str())
             .unwrap_or("calculator")
     }
