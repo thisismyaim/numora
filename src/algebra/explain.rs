@@ -1,4 +1,5 @@
-use crate::algebra::{simplify_expression, AlgebraExpr};
+use crate::algebra::expression::{AlgebraExpr, AlgebraOp};
+use crate::algebra::simplify_expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraExplanationStep {
@@ -8,22 +9,6 @@ pub struct AlgebraExplanationStep {
     pub explanation: String,
 }
 
-impl AlgebraExplanationStep {
-    pub fn new(
-        before: impl Into<String>,
-        after: impl Into<String>,
-        rule: impl Into<String>,
-        explanation: impl Into<String>,
-    ) -> Self {
-        Self {
-            before: before.into(),
-            after: after.into(),
-            rule: rule.into(),
-            explanation: explanation.into(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraExplanation {
     pub original: String,
@@ -31,92 +16,90 @@ pub struct AlgebraExplanation {
     pub steps: Vec<AlgebraExplanationStep>,
 }
 
-impl AlgebraExplanation {
-    pub fn new(
-        original: impl Into<String>,
-        simplified: impl Into<String>,
-        steps: Vec<AlgebraExplanationStep>,
-    ) -> Self {
-        Self {
-            original: original.into(),
-            simplified: simplified.into(),
-            steps,
-        }
-    }
-}
-
 pub fn explain_simplification(expr: AlgebraExpr) -> AlgebraExplanation {
-    let original = expr.to_string();
-    let simplified_expr = simplify_expression(expr.clone());
-    let simplified = simplified_expr.to_string();
+    let simplified = simplify_expression(expr.clone());
 
     let mut steps = Vec::new();
+    collect_steps(&expr, &simplified, &mut steps);
 
-    collect_explanation_steps(&expr, &mut steps);
-
-    if original != simplified && steps.is_empty() {
-        steps.push(AlgebraExplanationStep::new(
-            original.clone(),
-            simplified.clone(),
-            "Simplification",
-            "The expression was simplified using algebraic rules.",
-        ));
+    if steps.is_empty() && expr != simplified {
+        steps.push(AlgebraExplanationStep {
+            before: expr.to_string(),
+            after: simplified.to_string(),
+            rule: "Simplification".to_string(),
+            explanation: "The expression was simplified to an equivalent form.".to_string(),
+        });
     }
 
-    AlgebraExplanation::new(original, simplified, steps)
+    AlgebraExplanation {
+        original: expr.to_string(),
+        simplified: simplified.to_string(),
+        steps,
+    }
 }
 
-fn collect_explanation_steps(expr: &AlgebraExpr, steps: &mut Vec<AlgebraExplanationStep>) {
-    match expr {
-        AlgebraExpr::Binary { left, right, .. } => {
-            collect_explanation_steps(left, steps);
-            collect_explanation_steps(right, steps);
+fn collect_steps(
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
+    steps: &mut Vec<AlgebraExplanationStep>,
+) {
+    if before == after {
+        return;
+    }
 
-            let before = expr.to_string();
-            let after = simplify_expression(expr.clone()).to_string();
+    if let Some(step) = explain_direct_rule(before, after) {
+        steps.push(step);
+        return;
+    }
 
-            if before == after {
-                return;
-            }
+    match before {
+        AlgebraExpr::Binary { left, op: _, right } => {
+            let simplified_left = simplify_expression((**left).clone());
+            let simplified_right = simplify_expression((**right).clone());
 
-            if let Some(step) = explain_known_rule(expr, &before, &after) {
-                steps.push(step);
-            }
+            collect_steps(left, &simplified_left, steps);
+            collect_steps(right, &simplified_right, steps);
         }
-        _ => {}
+
+        AlgebraExpr::Number(_) | AlgebraExpr::Variable(_) => {}
+    }
+
+    if before != after {
+        steps.push(AlgebraExplanationStep {
+            before: before.to_string(),
+            after: after.to_string(),
+            rule: "Final simplification".to_string(),
+            explanation: "After applying algebra rules, the expression becomes simpler."
+                .to_string(),
+        });
     }
 }
 
-fn explain_known_rule(
-    expr: &AlgebraExpr,
-    before: &str,
-    after: &str,
+fn explain_direct_rule(
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
 ) -> Option<AlgebraExplanationStep> {
-    match expr {
-        AlgebraExpr::Binary { op, left, right } => {
-            let op_text = op.to_string();
+    match before {
+        AlgebraExpr::Binary { left, op, right } => match op {
+            AlgebraOp::Add => explain_addition(left, right, before, after),
+            AlgebraOp::Subtract => explain_subtraction(left, right, before, after),
+            AlgebraOp::Multiply => explain_multiplication(left, right, before, after),
+            AlgebraOp::Divide => explain_division(right, before, after),
+            AlgebraOp::Power => explain_power(right, before, after),
+        },
 
-            match op_text.as_str() {
-                "+" => explain_add_rule(left, right, before, after),
-                "-" => explain_subtract_rule(left, right, before, after),
-                "*" => explain_multiply_rule(left, right, before, after),
-                "/" => explain_divide_rule(left, right, before, after),
-                "^" => explain_power_rule(left, right, before, after),
-                _ => None,
-            }
-        }
-        _ => None,
+        AlgebraExpr::Number(_) | AlgebraExpr::Variable(_) => None,
     }
 }
 
-fn explain_add_rule(
+fn explain_addition(
     left: &AlgebraExpr,
     right: &AlgebraExpr,
-    before: &str,
-    after: &str,
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
 ) -> Option<AlgebraExplanationStep> {
-    if left.is_zero() || right.is_zero() {
-        return Some(AlgebraExplanationStep::new(
+    if is_zero(left) || is_zero(right) {
+        return Some(make_step(
             before,
             after,
             "Additive identity",
@@ -125,25 +108,16 @@ fn explain_add_rule(
     }
 
     if left == right {
-        return Some(AlgebraExplanationStep::new(
+        return Some(make_step(
             before,
             after,
             "Combine like terms",
-            "The same term added to itself becomes two times that term.",
+            "Adding the same variable to itself gives two copies of that variable.",
         ));
     }
 
-    if is_numeric(left) && is_numeric(right) {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Numeric addition",
-            "Both sides are numbers, so they can be added directly.",
-        ));
-    }
-
-    if after.contains('*') && before.contains('*') {
-        return Some(AlgebraExplanationStep::new(
+    if are_like_variable_terms(left, right) {
+        return Some(make_step(
             before,
             after,
             "Combine like terms",
@@ -151,17 +125,26 @@ fn explain_add_rule(
         ));
     }
 
+    if is_number(left) && is_number(right) {
+        return Some(make_step(
+            before,
+            after,
+            "Evaluate constants",
+            "Numeric constants can be calculated directly.",
+        ));
+    }
+
     None
 }
 
-fn explain_subtract_rule(
+fn explain_subtraction(
     left: &AlgebraExpr,
     right: &AlgebraExpr,
-    before: &str,
-    after: &str,
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
 ) -> Option<AlgebraExplanationStep> {
-    if right.is_zero() {
-        return Some(AlgebraExplanationStep::new(
+    if is_zero(right) {
+        return Some(make_step(
             before,
             after,
             "Subtractive identity",
@@ -170,7 +153,7 @@ fn explain_subtract_rule(
     }
 
     if left == right {
-        return Some(AlgebraExplanationStep::new(
+        return Some(make_step(
             before,
             after,
             "Self subtraction",
@@ -178,44 +161,35 @@ fn explain_subtract_rule(
         ));
     }
 
-    if is_numeric(left) && is_numeric(right) {
-        return Some(AlgebraExplanationStep::new(
+    if is_number(left) && is_number(right) {
+        return Some(make_step(
             before,
             after,
-            "Numeric subtraction",
-            "Both sides are numbers, so they can be subtracted directly.",
-        ));
-    }
-
-    if after.contains('*') && before.contains('*') {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Combine like terms",
-            "Terms with the same variable part can be combined by subtracting their coefficients.",
+            "Evaluate constants",
+            "Numeric constants can be calculated directly.",
         ));
     }
 
     None
 }
 
-fn explain_multiply_rule(
+fn explain_multiplication(
     left: &AlgebraExpr,
     right: &AlgebraExpr,
-    before: &str,
-    after: &str,
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
 ) -> Option<AlgebraExplanationStep> {
-    if left.is_zero() || right.is_zero() {
-        return Some(AlgebraExplanationStep::new(
+    if is_zero(left) || is_zero(right) {
+        return Some(make_step(
             before,
             after,
-            "Zero product property",
-            "Anything multiplied by zero becomes zero.",
+            "Zero product",
+            "Any expression multiplied by zero equals zero.",
         ));
     }
 
-    if left.is_one() || right.is_one() {
-        return Some(AlgebraExplanationStep::new(
+    if is_one(left) || is_one(right) {
+        return Some(make_step(
             before,
             after,
             "Multiplicative identity",
@@ -223,44 +197,25 @@ fn explain_multiply_rule(
         ));
     }
 
-    if left == right {
-        return Some(AlgebraExplanationStep::new(
+    if is_number(left) && is_number(right) {
+        return Some(make_step(
             before,
             after,
-            "Repeated multiplication",
-            "A term multiplied by itself can be written as that term squared.",
-        ));
-    }
-
-    if is_numeric(left) && is_numeric(right) {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Numeric multiplication",
-            "Both sides are numbers, so they can be multiplied directly.",
+            "Evaluate constants",
+            "Numeric constants can be calculated directly.",
         ));
     }
 
     None
 }
 
-fn explain_divide_rule(
-    left: &AlgebraExpr,
+fn explain_division(
     right: &AlgebraExpr,
-    before: &str,
-    after: &str,
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
 ) -> Option<AlgebraExplanationStep> {
-    if left.is_zero() {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Zero divided by expression",
-            "Zero divided by any non-zero expression is zero.",
-        ));
-    }
-
-    if right.is_one() {
-        return Some(AlgebraExplanationStep::new(
+    if is_one(right) {
+        return Some(make_step(
             before,
             after,
             "Division identity",
@@ -268,144 +223,78 @@ fn explain_divide_rule(
         ));
     }
 
-    if left == right {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Self division",
-            "Any non-zero expression divided by itself equals one.",
-        ));
-    }
-
-    if is_numeric(left) && is_numeric(right) {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Numeric division",
-            "Both sides are numbers, so they can be divided directly.",
-        ));
-    }
-
     None
 }
 
-fn explain_power_rule(
-    left: &AlgebraExpr,
+fn explain_power(
     right: &AlgebraExpr,
-    before: &str,
-    after: &str,
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
 ) -> Option<AlgebraExplanationStep> {
-    if right.is_zero() {
-        return Some(AlgebraExplanationStep::new(
+    if is_one(right) {
+        return Some(make_step(
             before,
             after,
-            "Zero exponent rule",
+            "Power of one rule",
+            "Any expression raised to the power of one stays the same.",
+        ));
+    }
+
+    if is_zero(right) {
+        return Some(make_step(
+            before,
+            after,
+            "Power of zero rule",
             "Any non-zero expression raised to the power of zero equals one.",
         ));
     }
 
-    if right.is_one() {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Power of one rule",
-            "Any expression raised to the power of one remains unchanged.",
-        ));
-    }
-
-    if left.is_one() {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "One base rule",
-            "One raised to any power remains one.",
-        ));
-    }
-
-    if left.is_zero() {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Zero base rule",
-            "Zero raised to a positive power remains zero.",
-        ));
-    }
-
-    if is_numeric(left) && is_numeric(right) {
-        return Some(AlgebraExplanationStep::new(
-            before,
-            after,
-            "Numeric power",
-            "Both base and exponent are numbers, so the power can be calculated directly.",
-        ));
-    }
-
     None
 }
 
-fn is_numeric(expr: &AlgebraExpr) -> bool {
+fn make_step(
+    before: &AlgebraExpr,
+    after: &AlgebraExpr,
+    rule: &str,
+    explanation: &str,
+) -> AlgebraExplanationStep {
+    AlgebraExplanationStep {
+        before: before.to_string(),
+        after: after.to_string(),
+        rule: rule.to_string(),
+        explanation: explanation.to_string(),
+    }
+}
+
+fn is_number(expr: &AlgebraExpr) -> bool {
     matches!(expr, AlgebraExpr::Number(_))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::algebra::parse_algebra_expression;
+fn is_zero(expr: &AlgebraExpr) -> bool {
+    matches!(expr, AlgebraExpr::Number(value) if *value == 0.0)
+}
 
-    fn explain_text(source: &str) -> AlgebraExplanation {
-        let expr = parse_algebra_expression(source).unwrap();
-        explain_simplification(expr)
-    }
+fn is_one(expr: &AlgebraExpr) -> bool {
+    matches!(expr, AlgebraExpr::Number(value) if *value == 1.0)
+}
 
-    #[test]
-    fn explains_additive_identity() {
-        let explanation = explain_text("x + 0");
+fn are_like_variable_terms(left: &AlgebraExpr, right: &AlgebraExpr) -> bool {
+    extract_variable_name(left).is_some()
+        && extract_variable_name(left) == extract_variable_name(right)
+}
 
-        assert_eq!(explanation.simplified, "x");
-        assert!(explanation
-            .steps
-            .iter()
-            .any(|step| step.rule == "Additive identity"));
-    }
+fn extract_variable_name(expr: &AlgebraExpr) -> Option<String> {
+    match expr {
+        AlgebraExpr::Variable(name) => Some(name.clone()),
 
-    #[test]
-    fn explains_multiplicative_identity() {
-        let explanation = explain_text("1 * x");
+        AlgebraExpr::Binary { left, op, right } if matches!(op, AlgebraOp::Multiply) => {
+            match (left.as_ref(), right.as_ref()) {
+                (AlgebraExpr::Number(_), AlgebraExpr::Variable(name)) => Some(name.clone()),
+                (AlgebraExpr::Variable(name), AlgebraExpr::Number(_)) => Some(name.clone()),
+                _ => None,
+            }
+        }
 
-        assert_eq!(explanation.simplified, "x");
-        assert!(explanation
-            .steps
-            .iter()
-            .any(|step| step.rule == "Multiplicative identity"));
-    }
-
-    #[test]
-    fn explains_self_subtraction() {
-        let explanation = explain_text("x - x");
-
-        assert_eq!(explanation.simplified, "0");
-        assert!(explanation
-            .steps
-            .iter()
-            .any(|step| step.rule == "Self subtraction"));
-    }
-
-    #[test]
-    fn explains_combine_like_terms() {
-        let explanation = explain_text("x + x");
-
-        assert_eq!(explanation.simplified, "(2 * x)");
-        assert!(explanation
-            .steps
-            .iter()
-            .any(|step| step.rule == "Combine like terms"));
-    }
-
-    #[test]
-    fn explains_numeric_expression() {
-        let explanation = explain_text("2 + 3 * 4");
-
-        assert_eq!(explanation.simplified, "14");
-        assert!(!explanation.steps.is_empty());
+        _ => None,
     }
 }

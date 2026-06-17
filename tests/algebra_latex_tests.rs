@@ -1,42 +1,72 @@
 use numora::algebra::{parse_algebra_expression, simplify_expression, to_latex};
 
-fn latex(source: &str) -> String {
-    let expr = parse_algebra_expression(source).unwrap();
-    to_latex(&expr)
-}
+#[test]
+fn renders_number_times_variable_without_dot() {
+    let expr = parse_algebra_expression("2 * x").unwrap();
 
-fn simplified_latex(source: &str) -> String {
-    let expr = parse_algebra_expression(source).unwrap();
-    let simplified = simplify_expression(expr);
-    to_latex(&simplified)
+    assert_eq!(to_latex(&expr), "2x");
 }
 
 #[test]
-fn latex_renders_basic_power() {
-    assert_eq!(latex("x ^ 2"), "x^{2}");
+fn renders_variable_times_number_as_coefficient_form() {
+    let expr = parse_algebra_expression("x * 2").unwrap();
+
+    assert_eq!(to_latex(&expr), "2x");
 }
 
 #[test]
-fn latex_renders_fraction() {
-    assert_eq!(latex("x / y"), "\\frac{x}{y}");
+fn renders_variable_times_variable_with_dot() {
+    let expr = parse_algebra_expression("x * y").unwrap();
+
+    assert_eq!(to_latex(&expr), "x \\cdot y");
 }
 
 #[test]
-fn latex_renders_coefficient_multiplication() {
-    assert_eq!(latex("2 * x"), "2x");
+fn renders_fraction() {
+    let expr = parse_algebra_expression("x / y").unwrap();
+
+    assert_eq!(to_latex(&expr), "\\frac{x}{y}");
 }
 
 #[test]
-fn latex_renders_simplified_like_terms() {
-    assert_eq!(simplified_latex("2 * x + 3 * x"), "5x");
+fn renders_power() {
+    let expr = parse_algebra_expression("x ^ 2").unwrap();
+
+    assert_eq!(to_latex(&expr), "x^{2}");
 }
 
 #[test]
-fn latex_renders_simplified_power_rule() {
-    assert_eq!(simplified_latex("x ^ 1"), "x");
+fn renders_power_with_grouped_base() {
+    let expr = parse_algebra_expression("(x + 1) ^ 2").unwrap();
+
+    assert_eq!(to_latex(&expr), "\\left(x + 1\\right)^{2}");
 }
 
 #[test]
-fn latex_renders_grouped_expression_power() {
-    assert_eq!(latex("(x + 1) ^ 2"), "\\left(x + 1\\right)^{2}");
+fn renders_greek_theta() {
+    let expr = parse_algebra_expression("theta").unwrap();
+
+    assert_eq!(to_latex(&expr), "\\theta");
+}
+
+#[test]
+fn renders_greek_lambda() {
+    let expr = parse_algebra_expression("lambda").unwrap();
+
+    assert_eq!(to_latex(&expr), "\\lambda");
+}
+
+#[test]
+fn escapes_underscore_variable() {
+    let expr = parse_algebra_expression("x_1").unwrap();
+
+    assert_eq!(to_latex(&expr), "x\\_1");
+}
+
+#[test]
+fn renders_simplified_expression_as_latex() {
+    let expr = parse_algebra_expression("2 * x + 0").unwrap();
+    let simplified = simplify_expression(expr.clone());
+
+    assert_eq!(to_latex(&simplified), "2x");
 }

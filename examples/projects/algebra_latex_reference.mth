@@ -1,0 +1,23 @@
+@run algebra steps
+
+simplify:
+    first = 2 * x
+    second = x * 2
+    third = x * y
+    fourth = x / y
+    fifth = x ^ 2
+    sixth = (x + 1) ^ 2
+    seventh = theta
+    eighth = lambda
+    ninth = x_1
+
+find:
+    first
+    second
+    third
+    fourth
+    fifth
+    sixth
+    seventh
+    eighth
+    ninth
