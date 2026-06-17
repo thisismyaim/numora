@@ -18,4 +18,6 @@ fn algebra_simplify_example_file_runs() {
     assert!(output.contains("result: seventh = x"));
     assert!(output.contains("result: eighth = 1"));
     assert!(output.contains("steps:"));
+    assert!(output.contains("rule:"));
+    assert!(output.contains("explanation:"));
 }

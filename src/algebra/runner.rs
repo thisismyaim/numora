@@ -1,4 +1,4 @@
-use crate::algebra::{parse_algebra_expression, simplify_expression};
+use crate::algebra::{explain_simplification, parse_algebra_expression, AlgebraExplanation};
 use crate::error::Numora;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8,10 +8,9 @@ struct SimplifyAssignment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SimplifyResult {
+struct NamedExplanation {
     name: String,
-    original: String,
-    simplified: String,
+    explanation: AlgebraExplanation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,13 +44,11 @@ pub fn run_algebra_simplify_program(source: &str) -> Result<String, Numora> {
 
     for assignment in assignments {
         let parsed = parse_algebra_expression(&assignment.expression)?;
-        let original = parsed.to_string();
-        let simplified = simplify_expression(parsed).to_string();
+        let explanation = explain_simplification(parsed);
 
-        results.push(SimplifyResult {
+        results.push(NamedExplanation {
             name: assignment.name,
-            original,
-            simplified,
+            explanation,
         });
     }
 
@@ -160,9 +157,9 @@ fn parse_find_items(source: &str) -> Result<Vec<String>, Numora> {
 }
 
 fn select_results(
-    results: Vec<SimplifyResult>,
+    results: Vec<NamedExplanation>,
     finds: Vec<String>,
-) -> Result<Vec<SimplifyResult>, Numora> {
+) -> Result<Vec<NamedExplanation>, Numora> {
     if finds.is_empty() {
         return Ok(results);
     }
@@ -183,13 +180,13 @@ fn select_results(
     Ok(selected)
 }
 
-fn format_simplify_results(results: &[SimplifyResult], wants_steps: bool) -> String {
+fn format_simplify_results(results: &[NamedExplanation], wants_steps: bool) -> String {
     let mut output = String::new();
 
     for result in results {
         output.push_str(&format!(
             "result: {} = {}\n",
-            result.name, result.simplified
+            result.name, result.explanation.simplified
         ));
     }
 
@@ -199,12 +196,17 @@ fn format_simplify_results(results: &[SimplifyResult], wants_steps: bool) -> Str
         for result in results {
             output.push_str(&format!(
                 "    original: {} = {}\n",
-                result.name, result.original
+                result.name, result.explanation.original
             ));
             output.push_str(&format!(
                 "    simplified: {} = {}\n",
-                result.name, result.simplified
+                result.name, result.explanation.simplified
             ));
+
+            for step in &result.explanation.steps {
+                output.push_str(&format!("    rule: {}\n", step.rule));
+                output.push_str(&format!("    explanation: {}\n", step.explanation));
+            }
         }
     }
 
@@ -266,6 +268,8 @@ find:
         assert!(output.contains("steps:"));
         assert!(output.contains("original:"));
         assert!(output.contains("simplified:"));
+        assert!(output.contains("rule:"));
+        assert!(output.contains("explanation:"));
     }
 
     #[test]
