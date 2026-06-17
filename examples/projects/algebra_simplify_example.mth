@@ -4,8 +4,18 @@ simplify:
     result = x + 0
     second = 1 * y
     third = 2 + 3 * 4
+    fourth = x - x
+    fifth = x + x
+    sixth = 2 * x + 3 * x
+    seventh = x ^ 1
+    eighth = x ^ 0
 
 find:
     result
     second
     third
+    fourth
+    fifth
+    sixth
+    seventh
+    eighth
