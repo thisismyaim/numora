@@ -1,10 +1,15 @@
 use crate::algebra::expression::{AlgebraExpr, AlgebraOp};
+use crate::algebra::latex::to_latex;
 use crate::algebra::simplify_expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraExplanationStep {
     pub before: String,
     pub after: String,
+
+    pub latex_before: String,
+    pub latex_after: String,
+
     pub rule: String,
     pub explanation: String,
 }
@@ -13,6 +18,10 @@ pub struct AlgebraExplanationStep {
 pub struct AlgebraExplanation {
     pub original: String,
     pub simplified: String,
+
+    pub latex_original: String,
+    pub latex_simplified: String,
+
     pub steps: Vec<AlgebraExplanationStep>,
 }
 
@@ -23,17 +32,21 @@ pub fn explain_simplification(expr: AlgebraExpr) -> AlgebraExplanation {
     collect_steps(&expr, &simplified, &mut steps);
 
     if steps.is_empty() && expr != simplified {
-        steps.push(AlgebraExplanationStep {
-            before: expr.to_string(),
-            after: simplified.to_string(),
-            rule: "Simplification".to_string(),
-            explanation: "The expression was simplified to an equivalent form.".to_string(),
-        });
+        steps.push(make_step(
+            &expr,
+            &simplified,
+            "Simplification",
+            "The expression was simplified to an equivalent form.",
+        ));
     }
 
     AlgebraExplanation {
         original: expr.to_string(),
         simplified: simplified.to_string(),
+
+        latex_original: to_latex(&expr),
+        latex_simplified: to_latex(&simplified),
+
         steps,
     }
 }
@@ -65,13 +78,12 @@ fn collect_steps(
     }
 
     if before != after {
-        steps.push(AlgebraExplanationStep {
-            before: before.to_string(),
-            after: after.to_string(),
-            rule: "Final simplification".to_string(),
-            explanation: "After applying algebra rules, the expression becomes simpler."
-                .to_string(),
-        });
+        steps.push(make_step(
+            before,
+            after,
+            "Final simplification",
+            "After applying algebra rules, the expression becomes simpler.",
+        ));
     }
 }
 
@@ -261,6 +273,10 @@ fn make_step(
     AlgebraExplanationStep {
         before: before.to_string(),
         after: after.to_string(),
+
+        latex_before: to_latex(before),
+        latex_after: to_latex(after),
+
         rule: rule.to_string(),
         explanation: explanation.to_string(),
     }
