@@ -1,220 +1,183 @@
-use crate::algebra::{explain_simplification, parse_algebra_expression, AlgebraExplanation};
+use crate::algebra::explain::{explain_simplification, AlgebraExplanation};
+use crate::algebra::parser::parse_algebra_expression;
+use crate::algebra::simplify_expression;
 use crate::error::Numora;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct SimplifyAssignment {
+pub struct AlgebraSimplifyResult {
     name: String,
-    expression: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NamedExplanation {
-    name: String,
+    simplified: String,
     explanation: AlgebraExplanation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AlgebraSection {
-    None,
-    Simplify,
-    Find,
-}
-
 pub fn source_contains_simplify_section(source: &str) -> bool {
-    source.lines().any(|line| line.trim() == "simplify:")
+    source
+        .lines()
+        .any(|line| line.trim().eq_ignore_ascii_case("simplify:"))
 }
 
 pub fn run_algebra_simplify_program(source: &str) -> Result<String, Numora> {
-    let wants_steps = source
-        .lines()
-        .find(|line| line.trim().starts_with("@run"))
-        .map(|line| line.split_whitespace().any(|part| part == "steps"))
-        .unwrap_or(false);
+    let show_steps = source_uses_steps_mode(source);
 
-    let assignments = parse_simplify_assignments(source)?;
-    let finds = parse_find_items(source)?;
+    run_algebra_simplify_program_with_steps(source, show_steps)
+}
 
-    if assignments.is_empty() {
-        return Err(Numora::EvaluationError(
-            "@run algebra simplify needs at least one simplify assignment".to_string(),
-        ));
+pub fn run_algebra_simplify_program_with_steps(
+    source: &str,
+    show_steps: bool,
+) -> Result<String, Numora> {
+    let simplify_lines = collect_section_lines(source, "simplify");
+    let find_lines = collect_section_lines(source, "find");
+
+    if simplify_lines.is_empty() {
+        return Err(algebra_error("Missing simplify section."));
     }
 
     let mut results = Vec::new();
 
-    for assignment in assignments {
-        let parsed = parse_algebra_expression(&assignment.expression)?;
+    for line in simplify_lines {
+        let Some((name, expression_source)) = parse_assignment(&line) else {
+            return Err(algebra_error(format!(
+                "Invalid simplify assignment: {}",
+                line
+            )));
+        };
+
+        let parsed = parse_algebra_expression(expression_source.trim()).map_err(|err| {
+            algebra_error(format!(
+                "Failed to parse algebra expression '{}': {}",
+                expression_source, err
+            ))
+        })?;
+
+        let simplified = simplify_expression(parsed.clone());
         let explanation = explain_simplification(parsed);
 
-        results.push(NamedExplanation {
-            name: assignment.name,
+        results.push(AlgebraSimplifyResult {
+            name: name.trim().to_string(),
+            simplified: simplified.to_string(),
             explanation,
         });
     }
 
-    let selected_results = select_results(results, finds)?;
+    let requested_names = parse_find_names(&find_lines);
 
-    Ok(format_simplify_results(&selected_results, wants_steps))
-}
+    let selected_results = if requested_names.is_empty() {
+        results
+    } else {
+        let mut selected = Vec::new();
 
-fn parse_simplify_assignments(source: &str) -> Result<Vec<SimplifyAssignment>, Numora> {
-    let mut assignments = Vec::new();
-    let mut section = AlgebraSection::None;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-
-        if should_skip_line(trimmed) {
-            continue;
-        }
-
-        match trimmed {
-            "simplify:" => {
-                section = AlgebraSection::Simplify;
-                continue;
-            }
-            "find:" => {
-                section = AlgebraSection::Find;
-                continue;
-            }
-            "given:" | "formula:" | "equation:" | "solve:" => {
-                section = AlgebraSection::None;
-                continue;
-            }
-            _ => {}
-        }
-
-        if section == AlgebraSection::Simplify {
-            let (name, expression) = trimmed.split_once('=').ok_or_else(|| {
-                Numora::ParserError(format!(
-                    "Invalid simplify assignment '{}'. Expected name = expression",
-                    trimmed
-                ))
-            })?;
-
-            let name = name.trim();
-
-            if name.is_empty() {
-                return Err(Numora::ParserError(
-                    "Simplify assignment name cannot be empty".to_string(),
-                ));
-            }
-
-            let expression = expression.trim();
-
-            if expression.is_empty() {
-                return Err(Numora::ParserError(format!(
-                    "Simplify assignment '{}' has empty expression",
-                    name
+        for requested_name in requested_names {
+            let Some(result) = results
+                .iter()
+                .find(|result| result.name == requested_name)
+                .cloned()
+            else {
+                return Err(algebra_error(format!(
+                    "Missing simplify result: {}",
+                    requested_name
                 )));
-            }
+            };
 
-            assignments.push(SimplifyAssignment {
-                name: name.to_string(),
-                expression: expression.to_string(),
-            });
-        }
-    }
-
-    Ok(assignments)
-}
-
-fn parse_find_items(source: &str) -> Result<Vec<String>, Numora> {
-    let mut finds = Vec::new();
-    let mut section = AlgebraSection::None;
-
-    for line in source.lines() {
-        let trimmed = line.trim();
-
-        if should_skip_line(trimmed) {
-            continue;
+            selected.push(result);
         }
 
-        match trimmed {
-            "find:" => {
-                section = AlgebraSection::Find;
-                continue;
-            }
-            "simplify:" | "given:" | "formula:" | "equation:" | "solve:" => {
-                section = AlgebraSection::None;
-                continue;
-            }
-            _ => {}
-        }
+        selected
+    };
 
-        if section == AlgebraSection::Find {
-            for item in trimmed.split(',') {
-                let item = item.trim();
-
-                if !item.is_empty() {
-                    finds.push(item.to_string());
-                }
-            }
-        }
-    }
-
-    Ok(finds)
-}
-
-fn select_results(
-    results: Vec<NamedExplanation>,
-    finds: Vec<String>,
-) -> Result<Vec<NamedExplanation>, Numora> {
-    if finds.is_empty() {
-        return Ok(results);
-    }
-
-    let mut selected = Vec::new();
-
-    for find in finds {
-        if let Some(result) = results.iter().find(|result| result.name == find) {
-            selected.push(result.clone());
-        } else {
-            return Err(Numora::EvaluationError(format!(
-                "Could not find simplify result '{}'",
-                find
-            )));
-        }
-    }
-
-    Ok(selected)
-}
-
-fn format_simplify_results(results: &[NamedExplanation], wants_steps: bool) -> String {
     let mut output = String::new();
 
-    for result in results {
+    for result in selected_results {
         output.push_str(&format!(
             "result: {} = {}\n",
-            result.name, result.explanation.simplified
+            result.name, result.simplified
         ));
-    }
 
-    if wants_steps {
-        output.push_str("\nsteps:\n");
+        output.push_str(&format!(
+            "latex: {} = {}\n",
+            result.name, result.explanation.latex_simplified
+        ));
 
-        for result in results {
-            output.push_str(&format!(
-                "    original: {} = {}\n",
-                result.name, result.explanation.original
-            ));
-            output.push_str(&format!(
-                "    simplified: {} = {}\n",
-                result.name, result.explanation.simplified
-            ));
+        if show_steps {
+            output.push_str("steps:\n");
 
-            for step in &result.explanation.steps {
-                output.push_str(&format!("    rule: {}\n", step.rule));
-                output.push_str(&format!("    explanation: {}\n", step.explanation));
+            for step in result.explanation.steps {
+                output.push_str(&format!("rule: {}\n", step.rule));
+                output.push_str(&format!("before: {}\n", step.before));
+                output.push_str(&format!("after: {}\n", step.after));
+                output.push_str(&format!("latex_before: {}\n", step.latex_before));
+                output.push_str(&format!("latex_after: {}\n", step.latex_after));
+                output.push_str(&format!("explanation: {}\n", step.explanation));
             }
         }
     }
 
-    output.trim_end().to_string()
+    Ok(output.trim_end().to_string())
 }
 
-fn should_skip_line(line: &str) -> bool {
-    line.is_empty() || line.starts_with('#') || line.starts_with("@run")
+fn source_uses_steps_mode(source: &str) -> bool {
+    source
+        .lines()
+        .find(|line| line.trim_start().starts_with("@run"))
+        .map(|line| line.split_whitespace().any(|mode| mode == "steps"))
+        .unwrap_or(false)
+}
+
+fn collect_section_lines(source: &str, section_name: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut inside_target_section = false;
+
+    for raw_line in source.lines() {
+        let line = raw_line.trim();
+
+        if line.is_empty() || line.starts_with('#') || line.starts_with("@run") {
+            continue;
+        }
+
+        if is_section_header(line) {
+            inside_target_section = line.eq_ignore_ascii_case(&format!("{}:", section_name));
+            continue;
+        }
+
+        if inside_target_section {
+            lines.push(line.to_string());
+        }
+    }
+
+    lines
+}
+
+fn is_section_header(line: &str) -> bool {
+    matches!(
+        line,
+        "given:" | "formula:" | "simplify:" | "equation:" | "find:" | "solve:"
+    )
+}
+
+fn parse_assignment(line: &str) -> Option<(&str, &str)> {
+    let (name, expression) = line.split_once('=')?;
+
+    let name = name.trim();
+    let expression = expression.trim();
+
+    if name.is_empty() || expression.is_empty() {
+        return None;
+    }
+
+    Some((name, expression))
+}
+
+fn parse_find_names(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn algebra_error(message: impl Into<String>) -> Numora {
+    Numora::EvaluationError(message.into())
 }
 
 #[cfg(test)]
@@ -228,6 +191,9 @@ mod tests {
 
 simplify:
     result = x + 0
+
+find:
+    result
 "#;
 
         assert!(source_contains_simplify_section(source));
@@ -248,6 +214,7 @@ find:
         let output = run_algebra_simplify_program(source).unwrap();
 
         assert!(output.contains("result: result = x"));
+        assert!(output.contains("latex: result = x"));
     }
 
     #[test]
@@ -265,11 +232,30 @@ find:
         let output = run_algebra_simplify_program(source).unwrap();
 
         assert!(output.contains("result: result = x"));
+        assert!(output.contains("latex: result = x"));
         assert!(output.contains("steps:"));
-        assert!(output.contains("original:"));
-        assert!(output.contains("simplified:"));
-        assert!(output.contains("rule:"));
-        assert!(output.contains("explanation:"));
+        assert!(output.contains("rule: Additive identity"));
+        assert!(output.contains("latex_before: x + 0"));
+        assert!(output.contains("latex_after: x"));
+    }
+
+    #[test]
+    fn explicit_steps_helper_can_show_steps() {
+        let source = r#"
+@run algebra
+
+simplify:
+    result = x + 0
+
+find:
+    result
+"#;
+
+        let output = run_algebra_simplify_program_with_steps(source, true).unwrap();
+
+        assert!(output.contains("steps:"));
+        assert!(output.contains("latex_before: x + 0"));
+        assert!(output.contains("latex_after: x"));
     }
 
     #[test]
@@ -287,6 +273,7 @@ find:
         let output = run_algebra_simplify_program(source).unwrap();
 
         assert!(output.contains("result: result = 14"));
+        assert!(output.contains("latex: result = 14"));
     }
 
     #[test]
@@ -295,14 +282,14 @@ find:
 @run algebra
 
 simplify:
-    a = x + 0
-    b = 1 * y
+    first = x + 0
+    second = 1 * y
 "#;
 
         let output = run_algebra_simplify_program(source).unwrap();
 
-        assert!(output.contains("result: a = x"));
-        assert!(output.contains("result: b = y"));
+        assert!(output.contains("result: first = x"));
+        assert!(output.contains("result: second = y"));
     }
 
     #[test]
@@ -317,8 +304,10 @@ find:
     missing
 "#;
 
-        let result = run_algebra_simplify_program(source);
+        let error = run_algebra_simplify_program(source).unwrap_err();
 
-        assert!(result.is_err());
+        assert!(error
+            .to_string()
+            .contains("Missing simplify result: missing"));
     }
 }
